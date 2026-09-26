@@ -54,8 +54,31 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
 
-      - name: Build and publish Windows packages
+      - name: Build Windows packages
         if: steps.release_check.outputs.exists != 'true'
+        run: npm run build -- --publish never
+
+      - name: Verify updater artifacts
+        if: steps.release_check.outputs.exists != 'true'
+        shell: bash
+        run: |
+          test -f dist/latest.yml
+          test -f "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe"
+          test -f "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe.blockmap"
+          echo "Updater artifacts verified:"
+          ls -lh dist
+
+      - name: Create GitHub release and upload artifacts
+        if: steps.release_check.outputs.exists != 'true'
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build -- --publish always
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          gh release create "$TAG" \
+            "dist/latest.yml" \
+            "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe" \
+            "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe.blockmap" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Crimson Age $TAG" \
+            --generate-notes
