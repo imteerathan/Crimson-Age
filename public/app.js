@@ -183,7 +183,8 @@ async function render() {
       </div>`;
   } else if (view === 'save') {
     const baselines = await window.crimsonAge.listBaselines();
-    const analysisCard = lastAnalysis ? renderAnalysis(lastAnalysis) : '';\n    const history = baselines.length
+    const analysisCard = lastAnalysis ? renderAnalysis(lastAnalysis) : '';
+    const history = baselines.length
       ? `<div class="card" style="margin-top:14px"><h3>Baseline History</h3>${baselines.map((b, i) => `
           <div class="item">
             <div>
