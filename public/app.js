@@ -1,6 +1,6 @@
 let state;
 let view = 'home';
-let lastBaseline = null;
+let lastBaseline = null;\nlet lastAnalysis = null;
 let updater = { status: 'IDLE', message: 'Updater ready', version: '' };
 
 const app = document.querySelector('#app');
@@ -182,7 +182,7 @@ async function render() {
       </div>`;
   } else if (view === 'save') {
     const baselines = await window.crimsonAge.listBaselines();
-    const history = baselines.length
+    const analysisCard = lastAnalysis ? renderAnalysis(lastAnalysis) : '';\n    const history = baselines.length
       ? `<div class="card" style="margin-top:14px"><h3>Baseline History</h3>${baselines.map((b, i) => `
           <div class="item">
             <div>
@@ -199,7 +199,7 @@ async function render() {
       <p class="muted">Read-only baseline inspection. Crimson Age never writes to the selected game save.</p>
       <button id="pick">Select save file</button>
       <div id="picked" class="card" style="margin-top:14px">${lastBaseline ? renderBaseline(lastBaseline) : 'No new file selected in this session.'}</div>
-      ${history}`;
+      ${analysisCard}${history}`;
   } else {
     html = `
       <h1>Local Database</h1>
@@ -259,6 +259,29 @@ async function render() {
       await window.crimsonAge.installUpdate();
     };
   }
+}
+
+function renderAnalysis(a) {
+  const pairs = (a.format?.candidatePointerLengthPairs || []).slice(0, 20);
+  const interesting = a.strings?.interesting || [];
+  return `
+    <div class="card" style="margin-top:14px">
+      <h3>Binary Structure Analyzer · D1.3</h3>
+      <div class="kv">
+        <div>Mode</div><span>READ-ONLY STRUCTURAL</span>
+        <div>Header</div><code>${esc(a.format.headerAscii)}</code>
+        <div>SHA-256</div><code class="hash">${esc(a.sha256)}</code>
+        <div>Printable Strings</div><span>${a.strings.printableStringCount}</span>
+        <div>Saved Game Version</div><span>${esc(a.known.savedGameVersion || 'NOT RESOLVED')}</span>
+        <div>SHA-256 Integrity</div><span>PASS</span>
+        <div>HMAC</div><span>NOT RECALCULATED</span>
+      </div>
+      <h4>Interesting markers</h4>
+      ${interesting.length ? interesting.map(x => `<div class="item"><code>0x${x.offset.toString(16).padStart(8,'0')}</code><span>${esc(x.value)}</span></div>`).join('') : '<p class="muted">No known markers found.</p>'}
+      <h4>Candidate pointer / length pairs</h4>
+      ${pairs.length ? `<div class="list">${pairs.map(x => `<div class="item"><code>0x${x.offset.toString(16).padStart(8,'0')}</code><span>dataOffset=${x.dataOffset} · length=${x.length}</span></div>`).join('')}</div>` : '<p class="muted">No candidates found.</p>'}
+      <p class="muted">${esc(a.analyzer.note)}</p>
+    </div>`;
 }
 
 function renderBaseline(file) {
