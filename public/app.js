@@ -152,8 +152,9 @@ async function render() {
       <h1>Playbook</h1>
       <div class="list">
         <div class="item">D1 · Desktop Foundation <b>IN PROGRESS</b></div>
-        <div class="item">D1.2 · Save Baseline <b>VERIFIED</b></div>
-        <div class="item">D1.3 · Binary Structure Analyzer <b>PLANNED</b></div>
+        <div class="item">D1.2 · Save Baseline <b>VERIFIED</b>
+        <div class="item">D1.4 · Save Baseline Diff <b>IN PROGRESS</b></div></div>
+        <div class="item">D1.3 · Binary Structure Analyzer <b>VERIFIED</b></div>
         <div class="item">D2 · Crimson Age Core <b>PLANNED</b></div>
         <div class="item">D3 · Local Database <b>PLANNED</b></div>
         <div class="item">D4 · Real Map <b>PLANNED</b></div>
