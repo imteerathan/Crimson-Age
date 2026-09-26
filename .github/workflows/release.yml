@@ -44,7 +44,7 @@ jobs:
 
       - name: Build Windows packages
         if: steps.release_check.outputs.exists != 'true'
-        run: npm run build
+        run: npm run build -- --publish never
 
       - name: Create GitHub Release
         if: steps.release_check.outputs.exists != 'true'
