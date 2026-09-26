@@ -2,6 +2,7 @@ let state;
 let view = 'home';
 let lastBaseline = null;
 let lastAnalysis = null;
+let lastDiff = null;
 let updater = { status: 'IDLE', message: 'Updater ready', version: '' };
 
 const app = document.querySelector('#app');
@@ -184,6 +185,7 @@ async function render() {
   } else if (view === 'save') {
     const baselines = await window.crimsonAge.listBaselines();
     const analysisCard = lastAnalysis ? renderAnalysis(lastAnalysis) : '';
+    const diffCard = lastDiff ? renderDiff(lastDiff) : '';
     const history = baselines.length
       ? `<div class="card" style="margin-top:14px"><h3>Baseline History</h3>${baselines.map((b, i) => `
           <div class="item">
@@ -202,7 +204,8 @@ async function render() {
       <button id="pick">Select save file</button>
       ${lastBaseline ? '<button id="analyze" style="margin-left:8px">Analyze Binary Structure</button>' : ''}
       <div id="picked" class="card" style="margin-top:14px">${lastBaseline ? renderBaseline(lastBaseline) : 'No new file selected in this session.'}</div>
-      ${analysisCard}${history}`;
+      ${baselines.length >= 2 ? '<button id="compareLatest" style="margin-left:8px">Compare Latest Two Baselines</button>' : ''}
+      ${analysisCard}${diffCard}${history}`;
   } else {
     html = `
       <h1>Local Database</h1>
@@ -257,6 +260,25 @@ async function render() {
     };
   }
 
+  const compareLatest = document.querySelector('#compareLatest');
+  if (compareLatest) {
+    compareLatest.onclick = async () => {
+      compareLatest.disabled = true;
+      compareLatest.textContent = 'Comparing…';
+      try {
+        if (baselines.length < 2) throw new Error('At least two baselines are required.');
+        lastDiff = await window.crimsonAge.compareSaves(baselines[1].filePath, baselines[0].filePath);
+        console.log('Save baseline diff complete', { changed: lastDiff.changed, changedBytes: lastDiff.changedBytes, changedChunks: lastDiff.changedChunkCount });
+        await render();
+      } catch (err) {
+        console.error('Save baseline diff failed', err);
+        alert('Save baseline diff failed: ' + (err?.message || err));
+      } finally {
+        const button = document.querySelector('#compareLatest');
+        if (button) { button.disabled = false; button.textContent = 'Compare Latest Two Baselines'; }
+      }
+    };
+  }
   const analyze = document.querySelector('#analyze');
   if (analyze) {
     analyze.onclick = async () => {
@@ -291,6 +313,21 @@ async function render() {
   }
 }
 
+function renderDiff(d) {
+  const chunks = d.changedChunks || [];
+  return '<div class="card" style="margin-top:14px">' +
+    '<h3>Save Baseline Diff · D1.4</h3>' +
+    '<div class="kv">' +
+    '<div>Mode</div><span>' + esc(d.mode) + '</span>' +
+    '<div>Files Changed</div><span>' + (d.changed ? 'YES' : 'NO') + '</span>' +
+    '<div>Changed Bytes</div><span>' + d.changedBytes + '</span>' +
+    '<div>Changed Chunks</div><span>' + d.changedChunkCount + '</span>' +
+    '<div>First Changed Offset</div><span>' + (d.firstChangedOffset === null ? 'NONE' : '0x' + d.firstChangedOffset.toString(16)) + '</span>' +
+    '<div>Last Changed Offset</div><span>' + (d.lastChangedOffset === null ? 'NONE' : '0x' + d.lastChangedOffset.toString(16)) + '</span></div>' +
+    '<h4>Changed regions</h4>' +
+    (chunks.length ? '<div class="list">' + chunks.map(x => '<div class="item"><code>0x' + x.offset.toString(16).padStart(8,'0') + '</code><span>length=' + x.length + (x.sizeChanged ? ' · size change' : '') + '</span></div>').join('') + '</div>' : '<p class="muted">No byte differences found.</p>') +
+    '<p class="muted">' + esc(d.note) + '</p></div>';
+}
 function renderAnalysis(a) {
   const pairs = (a.format?.candidatePointerLengthPairs || []).slice(0, 20);
   const interesting = a.strings?.interesting || [];
