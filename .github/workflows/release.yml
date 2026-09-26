@@ -48,33 +48,12 @@ jobs:
 
       - name: Generate updater metadata
         if: steps.release_check.outputs.exists != 'true'
-        shell: powershell
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          $version = node -p "require('./package.json').version"
-          $exePath = "dist/Crimson-Age-Setup-$version.exe"
-          if (!(Test-Path $exePath)) { throw "Installer not found: $exePath" }
-
-          $sha512 = [Convert]::ToBase64String(
-            ([Security.Cryptography.SHA512]::Create()).ComputeHash(
-              [IO.File]::ReadAllBytes($exePath)
-            )
-          )
-          $size = (Get-Item $exePath).Length
-          $releaseDate = (Get-Date).ToUniversalTime().ToString("o")
-
-          @"
-          version: $version
-          files:
-            - url: Crimson-Age-Setup-$version.exe
-              sha512: $sha512
-              size: $size
-          path: Crimson-Age-Setup-$version.exe
-          sha512: $sha512
-          releaseDate: $releaseDate
-          "@ | Set-Content -Path "dist/latest.yml" -Encoding utf8
-
-          Write-Host "Generated dist/latest.yml"
-          Get-Content "dist/latest.yml"
+          test -f "dist/Crimson-Age-Setup-$VERSION.exe"
+          node -e "const fs=require('fs'); const crypto=require('crypto'); const version=process.env.VERSION; const exe='dist/Crimson-Age-Setup-'+version+'.exe'; const buf=fs.readFileSync(exe); const sha512=crypto.createHash('sha512').update(buf).digest('base64'); const size=fs.statSync(exe).size; const releaseDate=new Date().toISOString(); const yml=['version: '+version,'files:','  - url: Crimson-Age-Setup-'+version+'.exe','    sha512: '+sha512,'    size: '+size,'path: Crimson-Age-Setup-'+version+'.exe','sha512: '+sha512,'releaseDate: '+releaseDate,''].join('\n'); fs.writeFileSync('dist/latest.yml',yml,'utf8'); console.log(yml);"
 
       - name: Verify updater artifacts
         if: steps.release_check.outputs.exists != 'true'
