@@ -200,6 +200,7 @@ async function render() {
       <h1>Save Analyzer</h1>
       <p class="muted">Read-only baseline inspection. Crimson Age never writes to the selected game save.</p>
       <button id="pick">Select save file</button>
+      ${lastBaseline ? '<button id="analyze" style="margin-left:8px">Analyze Binary Structure</button>' : ''}
       <div id="picked" class="card" style="margin-top:14px">${lastBaseline ? renderBaseline(lastBaseline) : 'No new file selected in this session.'}</div>
       ${analysisCard}${history}`;
   } else {
@@ -243,6 +244,7 @@ async function render() {
         }
 
         lastBaseline = file;
+        lastAnalysis = null;
         box.innerHTML = renderBaseline(file);
         console.log('Baseline selected in UI', file);
         await render();
@@ -251,6 +253,32 @@ async function render() {
         box.textContent = 'Unable to analyze file: ' + (err?.message || err);
       } finally {
         pick.disabled = false;
+      }
+    };
+  }
+
+  const analyze = document.querySelector('#analyze');
+  if (analyze) {
+    analyze.onclick = async () => {
+      analyze.disabled = true;
+      analyze.textContent = 'Analyzing…';
+      try {
+        lastAnalysis = await window.crimsonAge.analyzeSaveStructure(lastBaseline.path);
+        console.log('Binary structure analysis complete', {
+          sha256: lastAnalysis.sha256,
+          printableStrings: lastAnalysis.strings?.printableStringCount,
+          candidates: lastAnalysis.format?.candidatePointerLengthPairs?.length
+        });
+        await render();
+      } catch (err) {
+        console.error('Binary structure analysis failed', err);
+        alert('Binary structure analysis failed: ' + (err?.message || err));
+      } finally {
+        const button = document.querySelector('#analyze');
+        if (button) {
+          button.disabled = false;
+          button.textContent = 'Analyze Binary Structure';
+        }
       }
     };
   }
