@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('crimsonAge', {
   setState: (s) => ipcRenderer.invoke('db:setState', s),
   dbInfo: () => ipcRenderer.invoke('db:info'),
   pickSave: () => ipcRenderer.invoke('save:pick'),
+  analyzeSaveStructure: (p) => ipcRenderer.invoke('save:analyzeStructure', p),
   listBaselines: () => ipcRenderer.invoke('save:listBaselines'),
   updaterStatus: () => ipcRenderer.invoke('updater:status'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
