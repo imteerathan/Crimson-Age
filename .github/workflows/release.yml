@@ -49,24 +49,64 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ steps.version.outputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "$TAG"
-          git push origin "$TAG"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Reusing it."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
 
       - name: Build Windows packages
         if: steps.release_check.outputs.exists != 'true'
         run: npm run build -- --publish never
 
+      - name: Generate updater metadata
+        if: steps.release_check.outputs.exists != 'true'
+        shell: powershell
+        run: |
+          $version = node -p "require('./package.json').version"
+          $exePath = "dist/Crimson-Age-Setup-$version.exe"
+          if (!(Test-Path $exePath)) { throw "Installer not found: $exePath" }
+
+          $sha512 = [Convert]::ToBase64String(
+            ([Security.Cryptography.SHA512]::Create()).ComputeHash(
+              [IO.File]::ReadAllBytes($exePath)
+            )
+          )
+          $size = (Get-Item $exePath).Length
+          $releaseDate = (Get-Date).ToUniversalTime().ToString("o")
+
+          @"
+          version: $version
+          files:
+            - url: Crimson-Age-Setup-$version.exe
+              sha512: $sha512
+              size: $size
+          path: Crimson-Age-Setup-$version.exe
+          sha512: $sha512
+          releaseDate: $releaseDate
+          "@ | Set-Content -Path "dist/latest.yml" -Encoding utf8
+
+          Write-Host "Generated dist/latest.yml"
+          Get-Content "dist/latest.yml"
+
       - name: Verify updater artifacts
         if: steps.release_check.outputs.exists != 'true'
-        shell: bash
+        shell: powershell
         run: |
-          test -f dist/latest.yml
-          test -f "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe"
-          test -f "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe.blockmap"
-          echo "Updater artifacts verified:"
-          ls -lh dist
+          $version = node -p "require('./package.json').version"
+          $required = @(
+            "dist/latest.yml",
+            "dist/Crimson-Age-Setup-$version.exe",
+            "dist/Crimson-Age-Setup-$version.exe.blockmap"
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path $path)) { throw "Missing updater artifact: $path" }
+          }
+          Write-Host "Updater artifacts verified:"
+          Get-ChildItem dist | Select-Object Name,Length
 
       - name: Create GitHub release and upload artifacts
         if: steps.release_check.outputs.exists != 'true'
@@ -75,10 +115,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ steps.version.outputs.version }}"
-          gh release create "$TAG" \
-            "dist/latest.yml" \
-            "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe" \
-            "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe.blockmap" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Crimson Age $TAG" \
-            --generate-notes
+          gh release create "$TAG"             "dist/latest.yml"             "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe"             "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe.blockmap"             --repo "$GITHUB_REPOSITORY"             --title "Crimson Age $TAG"             --generate-notes
