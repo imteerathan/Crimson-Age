@@ -42,18 +42,8 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build Windows packages
+      - name: Build and publish Windows packages
         if: steps.release_check.outputs.exists != 'true'
-        run: npm run build -- --publish never
-
-      - name: Create GitHub Release
-        if: steps.release_check.outputs.exists != 'true'
-        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="v${{ steps.version.outputs.version }}"
-          gh release create "$TAG" dist/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Crimson Age $TAG" \
-            --generate-notes
+        run: npm run build -- --publish always
