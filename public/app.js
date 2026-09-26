@@ -1,6 +1,7 @@
 let state;
 let view = 'home';
-let lastBaseline = null;\nlet lastAnalysis = null;
+let lastBaseline = null;
+let lastAnalysis = null;
 let updater = { status: 'IDLE', message: 'Updater ready', version: '' };
 
 const app = document.querySelector('#app');
