@@ -332,7 +332,13 @@ ipcMain.handle('save:pick', async () => {
   return { ...baseline, createdAt };
 });
 
-ipcMain.handle('save:analyzeStructure', (_, filePath) => {\n  console.log('IPC save:analyzeStructure', filePath);\n  if (!filePath || !fs.existsSync(filePath)) throw new Error('Save file no longer exists.');\n  return analyzeSaveStructure(filePath);\n});\n\nipcMain.handle('open:path', (_, targetPath) => {
+ipcMain.handle('save:analyzeStructure', (_, filePath) => {
+  console.log('IPC save:analyzeStructure', filePath);
+  if (!filePath || !fs.existsSync(filePath)) throw new Error('Save file no longer exists.');
+  return analyzeSaveStructure(filePath);
+});
+
+ipcMain.handle('open:path', (_, targetPath) => {
   console.log('IPC open:path', targetPath);
   return shell.openPath(targetPath);
 });
