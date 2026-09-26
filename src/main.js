@@ -332,10 +332,76 @@ ipcMain.handle('save:pick', async () => {
   return { ...baseline, createdAt };
 });
 
+
+function compareSaveFiles(firstPath, secondPath) {
+  if (!firstPath || !secondPath) throw new Error('Two save files are required.');
+  if (!fs.existsSync(firstPath) || !fs.existsSync(secondPath)) throw new Error('One or both save files no longer exist.');
+
+  const first = fs.readFileSync(firstPath);
+  const second = fs.readFileSync(secondPath);
+  const firstSha256 = crypto.createHash('sha256').update(first).digest('hex');
+  const secondSha256 = crypto.createHash('sha256').update(second).digest('hex');
+  const minLength = Math.min(first.length, second.length);
+  const chunkSize = 64;
+  const changedChunks = [];
+  let changedBytes = 0;
+  let firstChangedOffset = null;
+  let lastChangedOffset = null;
+
+  for (let offset = 0; offset < minLength; offset += chunkSize) {
+    const end = Math.min(offset + chunkSize, minLength);
+    let different = false;
+    for (let i = offset; i < end; i++) {
+      if (first[i] !== second[i]) {
+        different = true;
+        changedBytes++;
+        if (firstChangedOffset === null) firstChangedOffset = i;
+        lastChangedOffset = i;
+      }
+    }
+    if (different) changedChunks.push({ offset, length: end - offset });
+  }
+
+  if (first.length !== second.length) {
+    const start = minLength;
+    const extraLength = Math.abs(first.length - second.length);
+    changedBytes += extraLength;
+    if (firstChangedOffset === null) firstChangedOffset = start;
+    lastChangedOffset = Math.max(start, Math.max(first.length, second.length) - 1);
+    changedChunks.push({ offset: start, length: extraLength, sizeChanged: true });
+  }
+
+  return {
+    mode: 'READ_ONLY_BINARY_DIFF',
+    first: {
+      fileName: path.basename(firstPath),
+      fileSize: first.length,
+      sha256: firstSha256
+    },
+    second: {
+      fileName: path.basename(secondPath),
+      fileSize: second.length,
+      sha256: secondSha256
+    },
+    changed: firstSha256 !== secondSha256,
+    changedBytes,
+    changedChunkCount: changedChunks.length,
+    firstChangedOffset,
+    lastChangedOffset,
+    changedChunks: changedChunks.slice(0, 200),
+    note: 'Byte-level differences are observations only. No semantic meaning is inferred.'
+  };
+}
+
 ipcMain.handle('save:analyzeStructure', (_, filePath) => {
   console.log('IPC save:analyzeStructure', filePath);
   if (!filePath || !fs.existsSync(filePath)) throw new Error('Save file no longer exists.');
   return analyzeSaveStructure(filePath);
+});
+
+ipcMain.handle('save:compare', (_, firstPath, secondPath) => {
+  console.log('IPC save:compare', { firstPath, secondPath });
+  return compareSaveFiles(firstPath, secondPath);
 });
 
 ipcMain.handle('open:path', (_, targetPath) => {
