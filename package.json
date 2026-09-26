@@ -46,13 +46,17 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "artifactName": "Crimson-Age-${version}.${ext}"
     },
     "publish": {
       "provider": "github",
       "owner": "imteerathan",
       "repo": "Crimson-Age",
       "releaseType": "release"
+    },
+    "nsis": {
+      "artifactName": "Crimson-Age-Setup-${version}.${ext}"
     }
   }
 }
