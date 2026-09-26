@@ -90,6 +90,84 @@ function initDb() {
   }
 }
 
+function analyzeSaveStructure(filePath) {
+  const stat = fs.statSync(filePath);
+  const buf = fs.readFileSync(filePath);
+  const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+  const printable = b => Array.from(b, c => c >= 32 && c <= 126 ? String.fromCharCode(c) : '.').join('');
+
+  const strings = [];
+  let start = -1;
+  for (let i = 0; i <= buf.length; i++) {
+    const ok = i < buf.length && buf[i] >= 32 && buf[i] <= 126;
+    if (ok && start < 0) start = i;
+    if ((!ok || i === buf.length) && start >= 0) {
+      const end = i;
+      if (end - start >= 6) strings.push({ offset: start, length: end - start, value: buf.subarray(start, end).toString('utf8').slice(0, 160) });
+      start = -1;
+    }
+  }
+
+  const interesting = strings.filter(x => /savedGameVersion|KnowledgeSaveData|QuestSaveData|HMAC|main.?quest|version/i.test(x.value)).slice(0, 80);
+  const candidates = [];
+  const scanLimit = Math.min(buf.length, 1024 * 1024);
+  for (let o = 0; o + 8 <= scanLimit; o += 4) {
+    const dataOffset = buf.readUInt32LE(o);
+    const length = buf.readUInt32LE(o + 4);
+    if (dataOffset > 0 && dataOffset < buf.length && length >= 4 && length <= buf.length * 0.25 && dataOffset + length <= buf.length) {
+      candidates.push({ offset: o, dataOffset, length });
+    }
+  }
+
+  const unique = [];
+  const seen = new Set();
+  for (const c of candidates) {
+    const key = c.dataOffset + ':' + c.length;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(c);
+    }
+    if (unique.length >= 40) break;
+  }
+
+  const headerSize = Math.min(64, buf.length);
+  let savedGameVersion = null;
+  const marker = strings.find(x => /savedGameVersion/i.test(x.value));
+  if (marker) {
+    const nearby = strings.find(x => x.offset > marker.offset && x.offset - marker.offset < 256 && /\d+\./.test(x.value));
+    savedGameVersion = nearby?.value || marker.value;
+  }
+
+  return {
+    fileName: path.basename(filePath),
+    fileSize: stat.size,
+    lastModified: stat.mtime.toISOString(),
+    sha256,
+    readOnly: true,
+    format: {
+      headerBytesInspected: headerSize,
+      headerHex: buf.subarray(0, headerSize).toString('hex'),
+      headerAscii: printable(buf.subarray(0, Math.min(32, buf.length))),
+      candidatePointerLengthPairs: unique
+    },
+    strings: { printableStringCount: strings.length, interesting },
+    known: {
+      savedGameVersion,
+      semanticMappings: 'CONTROLLED_LIMITATION: semantic type/pointer mapping is not inferred by this analyzer.'
+    },
+    integrity: {
+      sha256: 'PASS',
+      sourceFileModified: false,
+      hmac: 'NOT_RECALCULATED'
+    },
+    analyzer: {
+      mode: 'READ_ONLY_STRUCTURAL',
+      heuristicCandidates: true,
+      note: 'Pointer/length candidates are structural hints, not confirmed schema records.'
+    }
+  };
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1440,
@@ -254,7 +332,7 @@ ipcMain.handle('save:pick', async () => {
   return { ...baseline, createdAt };
 });
 
-ipcMain.handle('open:path', (_, targetPath) => {
+ipcMain.handle('save:analyzeStructure', (_, filePath) => {\n  console.log('IPC save:analyzeStructure', filePath);\n  if (!filePath || !fs.existsSync(filePath)) throw new Error('Save file no longer exists.');\n  return analyzeSaveStructure(filePath);\n});\n\nipcMain.handle('open:path', (_, targetPath) => {
   console.log('IPC open:path', targetPath);
   return shell.openPath(targetPath);
 });
