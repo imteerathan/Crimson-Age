@@ -1,8 +1,8 @@
 {
-  "publicVersion": "0.3.15.2",
+  "publicVersion": "0.3.15.3",
   "releaseType": "hotfix",
   "baseVersion": "0.3.15",
-  "hotfixNumber": 2,
-  "updaterVersion": "0.3.17",
-  "notes": "Public Crimson Age versioning is separate from the updater engine version because electron-updater requires a valid SemVer app version."
+  "hotfixNumber": 3,
+  "updaterVersion": "0.3.18",
+  "notes": "Hotfix: include versioning metadata in packaged builds and harden startup when versioning metadata is unavailable."
 }
