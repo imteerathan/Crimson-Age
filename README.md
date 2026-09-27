@@ -50,3 +50,16 @@ Not yet claimed:
 - Semantic Save decoding
 - Crimson Route integration
 - Complete canonical database
+
+## Versioning policy
+
+The **public version** is the user-facing Crimson Age version:
+
+- `v.X.Y.Z` for normal builds.
+- `v.X.Y.Z.N` for hotfix N on the base version.
+
+For the project roadmap, X is the Major Update generation (0 = test, 1 = Full Release, 2 = Full Upgrade 1, 3 = Full Upgrade 2, and so on). Y is the Minor Update number (0-9999). Z is the Patch number.
+
+The updater engine uses a separate three-part SemVer value because electron-updater validates the application version as SemVer. This technical value is not the public version shown to users. The mapping is stored in `versioning.json`.
+
+The current build after the D1.6 hotfix cycle uses public version `v0.3.15.2` with updater build `0.3.17`.
