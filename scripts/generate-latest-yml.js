@@ -4,6 +4,7 @@ const crypto = require('crypto');
 
 const distDir = path.resolve(process.cwd(), 'dist');
 const version = require(path.resolve(process.cwd(), 'package.json')).version;
+const versionInfo = require(path.resolve(process.cwd(), 'versioning.json'));
 
 if (!fs.existsSync(distDir)) {
   throw new Error('dist directory not found');
@@ -42,6 +43,7 @@ const metadata = [
   `path: ${installer}`,
   `sha512: ${sha512}`,
   `releaseDate: ${releaseDate}`,
+  `publicVersion: ${versionInfo.publicVersion}`,
   ''
 ].join('\n');
 
