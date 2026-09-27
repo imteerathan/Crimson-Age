@@ -153,8 +153,9 @@ async function render() {
       <div class="list">
         <div class="item">D1 · Desktop Foundation <b>IN PROGRESS</b></div>
         <div class="item">D1.2 · Save Baseline <b>VERIFIED</b>
-        <div class="item">D1.4 · Save Baseline Diff <b>IN PROGRESS</b></div></div>
+        <div class="item">D1.4 · Save Baseline Diff <b>VERIFIED</b></div></div>
         <div class="item">D1.3 · Binary Structure Analyzer <b>VERIFIED</b></div>
+        <div class="item">D1.5 · Save Container Decoder <b>IN PROGRESS</b></div>
         <div class="item">D2 · Crimson Age Core <b>PLANNED</b></div>
         <div class="item">D3 · Local Database <b>PLANNED</b></div>
         <div class="item">D4 · Real Map <b>PLANNED</b></div>
@@ -187,6 +188,8 @@ async function render() {
     const baselines = await window.crimsonAge.listBaselines();
     const analysisCard = lastAnalysis ? renderAnalysis(lastAnalysis) : '';
     const diffCard = lastDiff ? renderDiff(lastDiff) : '';
+    const containerCard = lastContainerAnalysis ? renderContainerAnalysis(lastContainerAnalysis) : '';
+    const rawDiffCard = lastRawDiff ? renderRawDiff(lastRawDiff) : '';
     const snapshotBaselines = baselines.filter(b => b.snapshotPath);
     const history = baselines.length
       ? `<div class="card" style="margin-top:14px"><h3>Baseline History</h3>${baselines.map((b, i) => `
@@ -204,11 +207,11 @@ async function render() {
       <h1>Save Analyzer</h1>
       <p class="muted">Read-only baseline inspection. Crimson Age never writes to the selected game save.</p>
       <button id="pick">Select save file</button>
-      ${lastBaseline ? '<button id="analyze" style="margin-left:8px">Analyze Binary Structure</button>' : ''}
+      ${lastBaseline ? '<button id="analyze" style="margin-left:8px">Analyze Binary Structure</button><button id="analyzeContainer" style="margin-left:8px">Decode SAVE Container</button>' : ''}
       <div id="picked" class="card" style="margin-top:14px">${lastBaseline ? renderBaseline(lastBaseline) : 'No new file selected in this session.'}</div>
-      ${snapshotBaselines.length >= 2 ? '<button id="compareLatest" style="margin-left:8px">Compare Latest Two Baselines</button>' : ''}
+      ${snapshotBaselines.length >= 2 ? '<button id="compareLatest" style="margin-left:8px">Compare Latest Two Baselines</button><button id="compareRawLatest" style="margin-left:8px">Compare Decoded PARC Payloads</button>' : ''}
       <button id="exportData" style="margin-left:8px">Export Field Test Data</button>
-      ${analysisCard}${diffCard}${history}`;
+      ${analysisCard}${containerCard}${diffCard}${rawDiffCard}${history}`;
   } else {
     html = `
       <h1>Local Database</h1>
@@ -317,6 +320,45 @@ async function render() {
     };
   }
 
+  const analyzeContainer = document.querySelector('#analyzeContainer');
+  if (analyzeContainer) {
+    analyzeContainer.onclick = async () => {
+      analyzeContainer.disabled = true;
+      analyzeContainer.textContent = 'Decoding…';
+      try {
+        lastContainerAnalysis = await window.crimsonAge.analyzeSaveContainer(lastBaseline.path);
+        await render();
+      } catch (err) {
+        console.error('SAVE container decode failed', err);
+        alert('SAVE container decode failed: ' + (err?.message || err));
+      } finally {
+        const button = document.querySelector('#analyzeContainer');
+        if (button) { button.disabled = false; button.textContent = 'Decode SAVE Container'; }
+      }
+    };
+  }
+
+  const compareRawLatest = document.querySelector('#compareRawLatest');
+  if (compareRawLatest) {
+    compareRawLatest.onclick = async () => {
+      compareRawLatest.disabled = true;
+      compareRawLatest.textContent = 'Comparing…';
+      try {
+        const currentBaselines = await window.crimsonAge.listBaselines();
+        const currentSnapshotBaselines = currentBaselines.filter(b => b && b.snapshotPath);
+        if (currentSnapshotBaselines.length < 2) throw new Error('At least two immutable baseline snapshots are required.');
+        lastRawDiff = await window.crimsonAge.compareDecodedSaves(currentSnapshotBaselines[1].snapshotPath, currentSnapshotBaselines[0].snapshotPath);
+        await render();
+      } catch (err) {
+        console.error('Raw PARC diff failed', err);
+        alert('Raw PARC diff failed: ' + (err?.message || err));
+      } finally {
+        const button = document.querySelector('#compareRawLatest');
+        if (button) { button.disabled = false; button.textContent = 'Compare Decoded PARC Payloads'; }
+      }
+    };
+  }
+
   const analyze = document.querySelector('#analyze');
   if (analyze) {
     analyze.onclick = async () => {
@@ -349,6 +391,46 @@ async function render() {
       await window.crimsonAge.installUpdate();
     };
   }
+}
+
+function renderContainerAnalysis(a) {
+  if (a.exportError) return '<div class="card" style="margin-top:14px"><h3>SAVE Container Decoder · D1.5</h3><p class="muted">' + esc(a.exportError) + '</p></div>';
+  return '<div class="card" style="margin-top:14px"><h3>SAVE Container Decoder · D1.5</h3>' +
+    '<div class="kv">' +
+    '<div>Mode</div><span>' + esc(a.mode) + '</span>' +
+    '<div>File Size</div><span>' + fmtBytes(a.fileSize) + '</span>' +
+    '<div>Raw Size</div><span>' + fmtBytes(a.rawSize) + '</span>' +
+    '<div>Compression</div><span>' + esc(a.compression) + '</span>' +
+    '<div>Decryption</div><span>' + esc(a.decryption) + '</span>' +
+    '<div>HMAC</div><span>' + (a.hmacOk === true ? 'PASS' : a.hmacOk === false ? 'FAIL' : 'N/A') + '</span>' +
+    '<div>Raw Magic</div><code>' + esc(a.rawMagic) + '</code>' +
+    '<div>Schema Types</div><span>' + (a.schema?.typeCount ?? '—') + '</span>' +
+    '<div>Root Type</div><span>' + esc(a.schema?.rootType || '—') + '</span>' +
+    '<div>Schema Fingerprint</div><code>' + esc(a.schema?.fingerprint || '—') + '</code>' +
+    '<div>TOC Entries</div><span>' + (a.toc?.entryCount ?? '—') + '</span>' +
+    '<div>TOC Bounds</div><span>' + (a.toc?.boundsValid ? 'PASS' : 'CHECK') + '</span>' +
+    '</div>' +
+    (a.rawInterestingStrings?.length ? '<h4>Decoded markers</h4><div class="list">' + a.rawInterestingStrings.slice(0,40).map(x => '<div class="item"><code>0x' + x.offset.toString(16).padStart(8,'0') + '</code><span>' + esc(x.value) + '</span></div>').join('') + '</div>' : '<p class="muted">No known semantic markers found in decoded raw data.</p>') +
+    '</div>';
+}
+
+function renderRawDiff(d) {
+  if (d.exportError) return '<div class="card" style="margin-top:14px"><h3>Decoded PARC Diff · D1.5</h3><p class="muted">' + esc(d.exportError) + '</p></div>';
+  const chunks = d.changedChunks || [];
+  return '<div class="card" style="margin-top:14px"><h3>Decoded PARC Diff · D1.5</h3>' +
+    '<div class="kv">' +
+    '<div>Mode</div><span>' + esc(d.mode) + '</span>' +
+    '<div>Raw Changed</div><span>' + (d.changed ? 'YES' : 'NO') + '</span>' +
+    '<div>Changed Bytes</div><span>' + d.changedBytes + '</span>' +
+    '<div>Changed Chunks</div><span>' + d.changedChunkCount + '</span>' +
+    '<div>Raw Size Delta</div><span>' + d.rawSizeDelta + ' bytes</span>' +
+    '<div>Schema Same</div><span>' + (d.schemaSame ? 'YES' : 'NO') + '</span>' +
+    '<div>TOC Count Delta</div><span>' + d.tocCountDelta + '</span>' +
+    '<div>First Changed Offset</div><span>' + (d.firstChangedOffset === null ? 'NONE' : '0x' + d.firstChangedOffset.toString(16)) + '</span>' +
+    '<div>Last Changed Offset</div><span>' + (d.lastChangedOffset === null ? 'NONE' : '0x' + d.lastChangedOffset.toString(16)) + '</span>' +
+    '</div><p class="muted">Returned regions: ' + d.changedChunksReturned + (d.changedChunksTruncated ? ' (truncated)' : '') + '</p>' +
+    (chunks.length ? '<div class="list">' + chunks.slice(0,200).map(x => '<div class="item"><code>0x' + x.offset.toString(16).padStart(8,'0') + '</code><span>length=' + x.length + (x.sizeChanged ? ' · size change' : '') + '</span></div>').join('') + '</div>' : '<p class="muted">No raw byte differences found.</p>') +
+    '</div>';
 }
 
 function renderDiff(d) {
