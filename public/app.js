@@ -3,6 +3,8 @@ let view = 'home';
 let lastBaseline = null;
 let lastAnalysis = null;
 let lastDiff = null;
+let lastContainerAnalysis = null;
+let lastRawDiff = null;
 let updater = { status: 'IDLE', message: 'Updater ready', version: '' };
 
 const app = document.querySelector('#app');
