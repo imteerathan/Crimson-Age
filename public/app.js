@@ -5,10 +5,11 @@ let lastAnalysis = null;
 let lastDiff = null;
 let lastContainerAnalysis = null;
 let lastRawDiff = null;
-let updater = { status: 'IDLE', message: 'Updater ready', version: '' };
+let updater = { status: 'IDLE', message: 'Updater ready', version: '', publicVersion: '' };
 
 const app = document.querySelector('#app');
 const updateButton = document.querySelector('#update');
+const appVersion = document.querySelector('#app-version');
 
 const seed = [
   { id: 'CA-D1-001', title: 'Verify local database', status: 'PLANNED' },
@@ -45,7 +46,8 @@ function bindUpdater() {
       updater = await window.crimsonAge.checkForUpdates();
 
       if (updater.status === 'UPDATE_AVAILABLE') {
-        if (confirm(`Crimson Age ${updater.availableVersion} is available. Download now?`)) {
+        const publicVersion = updater.availablePublicVersion ? `v${updater.availablePublicVersion}` : `updater build ${updater.availableVersion}`;
+        if (confirm(`Crimson Age ${publicVersion} is available. Download now?`)) {
           updater = await window.crimsonAge.downloadUpdate();
         }
       }
@@ -115,14 +117,15 @@ function fmtBytes(value) {
 function updaterCard() {
   const status = esc(updater.status || 'IDLE');
   const message = esc(updater.message || 'Updater ready');
-  const version = esc(updater.availableVersion || updater.version || '—');
+  const version = esc(updater.availablePublicVersion ? `v${updater.availablePublicVersion}` : (updater.publicVersion ? `v${updater.publicVersion}` : updater.availableVersion || updater.version || '—'));
   const progress = Number.isFinite(updater.progress) ? `${updater.progress}%` : '';
 
   return `
     <div class="card update-card">
       <div class="section-title">Software Update</div>
       <div class="update-row"><span>Status</span><strong>${status}</strong></div>
-      <div class="update-row"><span>Version</span><strong>${version}</strong></div>
+      <div class="update-row"><span>Public Version</span><strong>${version}</strong></div>
+      <div class="update-row"><span>Updater Build</span><strong>${esc(updater.availableVersion || updater.version || '—')}</strong></div>
       <p class="muted">${message}</p>
       ${progress ? `<div class="progress"><span style="width:${progress}"></span></div>` : ''}
       ${updater.status === 'READY_TO_INSTALL' ? '<button id="restartUpdate">Restart & Install Update</button>' : ''}
@@ -131,12 +134,13 @@ function updaterCard() {
 
 async function render() {
   const info = await window.crimsonAge.dbInfo();
+  if (appVersion) appVersion.textContent = `v${info.publicVersion || info.version || '—'}`;
   let html = '';
 
   if (view === 'home') {
     html = `
       <h1>Crimson Age Desktop</h1>
-      <p class="muted">Windows-first · local field test · build ${esc(info.version)}</p>
+      <p class="muted">Windows-first · local field test · public ${esc(info.publicVersion || info.version)}</p>
       ${updaterCard()}
       <div class="grid">
         <div class="card"><div class="muted">Current Phase</div><div class="big">D1</div></div>
