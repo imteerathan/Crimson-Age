@@ -268,8 +268,15 @@ async function render() {
       compareLatest.disabled = true;
       compareLatest.textContent = 'Comparing…';
       try {
-        if (snapshotBaselines.length < 2) throw new Error('At least two immutable baseline snapshots are required.');
-        lastDiff = await window.crimsonAge.compareSaves(snapshotBaselines[1].snapshotPath, snapshotBaselines[0].snapshotPath);
+        const currentBaselines = await window.crimsonAge.listBaselines();
+        const currentSnapshotBaselines = currentBaselines.filter(b => b && b.snapshotPath);
+        if (currentSnapshotBaselines.length < 2) {
+          throw new Error('At least two immutable baseline snapshots are required. Capture two new baselines after updating to v0.3.9+.');
+        }
+        lastDiff = await window.crimsonAge.compareSaves(
+          currentSnapshotBaselines[1].snapshotPath,
+          currentSnapshotBaselines[0].snapshotPath
+        );
         console.log('Save baseline diff complete', { changed: lastDiff.changed, changedBytes: lastDiff.changedBytes, changedChunks: lastDiff.changedChunkCount });
         await render();
       } catch (err) {
