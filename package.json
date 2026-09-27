@@ -1,6 +1,6 @@
 {
   "name": "crimson-age-desktop",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "description": "Crimson Age Windows desktop companion",
   "private": true,
   "main": "src/main.js",
