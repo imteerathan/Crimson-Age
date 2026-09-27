@@ -363,7 +363,8 @@ ipcMain.handle('save:pick', async () => {
 });
 
 
-function compareSaveFiles(firstPath, secondPath) {
+function compareSaveFiles(firstPath, secondPath, options = {}) {
+  const maxChangedChunks = options.maxChangedChunks ?? 200;
   if (!firstPath || !secondPath) throw new Error('Two save files are required.');
   if (firstPath === secondPath) throw new Error('Cannot compare the same snapshot twice.');
   if (!fs.existsSync(firstPath) || !fs.existsSync(secondPath)) throw new Error('One or both save files no longer exist.');
@@ -419,7 +420,9 @@ function compareSaveFiles(firstPath, secondPath) {
     changedChunkCount: changedChunks.length,
     firstChangedOffset,
     lastChangedOffset,
-    changedChunks: changedChunks.slice(0, 200),
+    changedChunks: maxChangedChunks === null ? changedChunks : changedChunks.slice(0, maxChangedChunks),
+    changedChunksReturned: maxChangedChunks === null ? changedChunks.length : Math.min(changedChunks.length, maxChangedChunks),
+    changedChunksTruncated: maxChangedChunks !== null && changedChunks.length > maxChangedChunks,
     note: 'Byte-level differences are observations only. No semantic meaning is inferred.'
   };
 }
@@ -433,6 +436,113 @@ ipcMain.handle('save:analyzeStructure', (_, filePath) => {
 ipcMain.handle('save:compare', (_, firstPath, secondPath) => {
   console.log('IPC save:compare', { firstPath, secondPath });
   return compareSaveFiles(firstPath, secondPath);
+});
+
+ipcMain.handle('save:exportData', async () => {
+  console.log('IPC save:exportData');
+
+  const baselines = db.prepare(`
+    SELECT id, label, file_name AS fileName, file_path AS filePath,
+           file_size AS fileSize, last_modified AS lastModified,
+           sha256, created_at AS createdAt,
+           snapshot_path AS snapshotPath
+    FROM save_baseline
+    ORDER BY id DESC
+  `).all();
+
+  const snapshotBaselines = baselines.filter(b => b.snapshotPath);
+  let latestAnalysis = null;
+  let latestDiff = null;
+
+  if (snapshotBaselines.length >= 1) {
+    latestAnalysis = analyzeSaveStructure(snapshotBaselines[0].snapshotPath);
+  }
+
+  if (snapshotBaselines.length >= 2) {
+    latestDiff = compareSaveFiles(
+      snapshotBaselines[1].snapshotPath,
+      snapshotBaselines[0].snapshotPath,
+      { maxChangedChunks: null }
+    );
+  }
+
+  let logTail = null;
+  if (logFile) {
+    try {
+      const logText = await fs.promises.readFile(logFile, 'utf8');
+      logTail = logText.slice(-200000);
+    } catch (err) {
+      logTail = `Unable to read log: ${err?.message || String(err)}`;
+    }
+  }
+
+  const payload = {
+    exportFormat: 'crimson-age-field-test-v1',
+    exportedAt: new Date().toISOString(),
+    application: {
+      name: 'Crimson Age Desktop',
+      version: app.getVersion(),
+      packaged: app.isPackaged,
+      platform: process.platform,
+      arch: process.arch
+    },
+    database: {
+      path: path.join(dataDir(), 'crimson-age.db'),
+      recordCount: db.prepare('SELECT COUNT(*) n FROM ca_record').get().n,
+      baselineCount: baselines.length
+    },
+    playerState: JSON.parse(db.prepare('SELECT json FROM player_state WHERE id=1').get().json),
+    baselines,
+    latestAnalysis,
+    latestDiff,
+    logs: {
+      path: logFile,
+      included: Boolean(logTail),
+      tailBytes: logTail ? Buffer.byteLength(logTail, 'utf8') : 0,
+      tail: logTail
+    },
+    limitations: [
+      'This export includes metadata and diagnostic observations only.',
+      'Raw game save files are not embedded in the export.',
+      'Binary diff regions are observations; no semantic meaning is inferred.',
+      'The included log is limited to the most recent 200000 UTF-8 bytes.'
+    ]
+  };
+
+  const defaultName = `Crimson-Age-FieldTest-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Export Crimson Age Field Test Data',
+    defaultPath: defaultName,
+    filters: [{ name: 'JSON diagnostics', extensions: ['json'] }]
+  });
+
+  if (result.canceled || !result.filePath) {
+    console.log('Field test export canceled');
+    return { canceled: true };
+  }
+
+  const tempPath = result.filePath + '.tmp';
+  const json = JSON.stringify(payload, null, 2);
+  await fs.promises.writeFile(tempPath, json, 'utf8');
+  await fs.promises.rename(tempPath, result.filePath);
+
+  const exportedBytes = Buffer.byteLength(json, 'utf8');
+  console.log('Field test export complete', {
+    path: result.filePath,
+    exportedBytes,
+    baselineCount: baselines.length,
+    changedBytes: latestDiff?.changedBytes ?? null,
+    changedChunks: latestDiff?.changedChunkCount ?? null
+  });
+
+  return {
+    canceled: false,
+    path: result.filePath,
+    bytes: exportedBytes,
+    baselineCount: baselines.length,
+    changedBytes: latestDiff?.changedBytes ?? null,
+    changedChunks: latestDiff?.changedChunkCount ?? null
+  };
 });
 
 ipcMain.handle('open:path', (_, targetPath) => {
