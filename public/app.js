@@ -265,6 +265,9 @@ async function render() {
 
         lastBaseline = file;
         lastAnalysis = null;
+        lastDiff = null;
+        lastRawDiff = null;
+        correlationSearch = '';
         box.innerHTML = renderBaseline(file);
         console.log('Baseline selected in UI', file);
         await render();
