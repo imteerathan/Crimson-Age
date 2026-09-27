@@ -465,6 +465,225 @@ function readDecodedRaw(filePath) {
   return lz4BlockDecompress(plaintext, u32le(fileData, 0x12));
 }
 
+function fixedPrefixFieldRanges(raw, entry, schema) {
+  const typeDef = schema.types[entry.classIndex];
+  if (!typeDef) return { maskByteCount: 0, maskBytes: [], fields: [], headerEnd: entry.dataOffset };
+
+  const blockStart = entry.dataOffset;
+  const blockEnd = Math.min(raw.length, entry.dataOffset + entry.dataSize);
+  if (blockStart + 6 > blockEnd) return { maskByteCount: 0, maskBytes: [], fields: [], headerEnd: blockStart };
+
+  const expectedMaskBytes = Math.max(1, Math.ceil(typeDef.fields.length / 8));
+  const actualMaskBytes = u16le(raw, blockStart);
+  const maskByteCount = actualMaskBytes > 0 && actualMaskBytes <= 16 ? actualMaskBytes : expectedMaskBytes;
+  const headerEnd = blockStart + 2 + maskByteCount + 4;
+  if (headerEnd > blockEnd) return { maskByteCount, maskBytes: [], fields: [], headerEnd };
+
+  const maskBytes = Array.from(raw.subarray(blockStart + 2, blockStart + 2 + maskByteCount));
+  const fields = [];
+  let cursor = headerEnd;
+  let decodeStopped = false;
+
+  for (let fieldIndex = 0; fieldIndex < typeDef.fields.length; fieldIndex++) {
+    const field = typeDef.fields[fieldIndex];
+    const maskByte = maskBytes[Math.floor(fieldIndex / 8)] || 0;
+    const present = (maskByte & (1 << (fieldIndex % 8))) !== 0;
+    if (!present) {
+      fields.push({ fieldIndex, name: field.name, typeName: field.typeName, present: false, startOffset: null, endOffset: null });
+      continue;
+    }
+
+    if (decodeStopped) {
+      fields.push({ fieldIndex, name: field.name, typeName: field.typeName, present: true, startOffset: null, endOffset: null, decodeKind: 'not_decoded' });
+      continue;
+    }
+
+    if ((field.metaKind === 0 || field.metaKind === 2) && field.metaSize > 0) {
+      const fieldEnd = cursor + field.metaSize;
+      if (fieldEnd <= blockEnd) {
+        fields.push({
+          fieldIndex,
+          name: field.name,
+          typeName: field.typeName,
+          present: true,
+          startOffset: cursor,
+          endOffset: fieldEnd,
+          relativeStart: cursor - blockStart,
+          relativeEnd: fieldEnd - blockStart,
+          decodeKind: 'fixed_prefix'
+        });
+        cursor = fieldEnd;
+        continue;
+      }
+    }
+
+    fields.push({ fieldIndex, name: field.name, typeName: field.typeName, present: true, startOffset: null, endOffset: null, decodeKind: 'not_decoded' });
+    decodeStopped = true;
+  }
+
+  return { maskByteCount, maskBytes, fields, headerEnd, decodedFieldCount: fields.filter(f => f.startOffset !== null).length };
+}
+
+function compareByteRegion(firstRaw, secondRaw, firstStart, secondStart, length) {
+  let changedBytes = 0;
+  const ranges = [];
+  let rangeStart = null;
+
+  for (let i = 0; i < length; i++) {
+    if (firstRaw[firstStart + i] !== secondRaw[secondStart + i]) {
+      changedBytes++;
+      if (rangeStart === null) rangeStart = i;
+    } else if (rangeStart !== null) {
+      ranges.push({ start: rangeStart, end: i, length: i - rangeStart });
+      rangeStart = null;
+    }
+  }
+  if (rangeStart !== null) ranges.push({ start: rangeStart, end: length, length: length - rangeStart });
+  return { changedBytes, ranges };
+}
+
+function correlateParcObjects(first, second, firstRaw, secondRaw) {
+  const firstEntries = first.toc.allEntries || first.toc.firstEntries || [];
+  const secondEntries = second.toc.allEntries || second.toc.firstEntries || [];
+  const firstUsed = new Set();
+  const secondUsed = new Set();
+  const matches = [];
+
+  const bucketKey = entry => `${entry.classIndex}|${entry.sentinel1}|${entry.sentinel2}`;
+  const firstBuckets = new Map();
+  const secondBuckets = new Map();
+
+  for (const entry of firstEntries) {
+    const key = bucketKey(entry);
+    const list = firstBuckets.get(key) || [];
+    list.push(entry);
+    firstBuckets.set(key, list);
+  }
+  for (const entry of secondEntries) {
+    const key = bucketKey(entry);
+    const list = secondBuckets.get(key) || [];
+    list.push(entry);
+    secondBuckets.set(key, list);
+  }
+
+  for (const [key, list] of firstBuckets) {
+    const other = secondBuckets.get(key) || [];
+    const count = Math.min(list.length, other.length);
+    for (let i = 0; i < count; i++) {
+      matches.push({ first: list[i], second: other[i], matchMethod: 'class+sentinels+ordinal' });
+      firstUsed.add(list[i].index);
+      secondUsed.add(other[i].index);
+    }
+  }
+
+  const firstByIndex = new Map(firstEntries.map(e => [e.index, e]));
+  const secondByIndex = new Map(secondEntries.map(e => [e.index, e]));
+  for (const index of firstByIndex.keys()) {
+    if (firstUsed.has(index) || !secondByIndex.has(index) || secondUsed.has(index)) continue;
+    const a = firstByIndex.get(index);
+    const b = secondByIndex.get(index);
+    if (a.classIndex !== b.classIndex) continue;
+    matches.push({ first: a, second: b, matchMethod: 'entry-index+class' });
+    firstUsed.add(a.index);
+    secondUsed.add(b.index);
+  }
+
+  const changedObjects = [];
+  const classChanges = new Map();
+  let structurallyChanged = 0;
+
+  for (const pair of matches) {
+    const a = pair.first;
+    const b = pair.second;
+    const layoutSame = a.dataOffset === b.dataOffset && a.dataSize === b.dataSize;
+    const safeLength = Math.max(0, Math.min(a.dataSize, b.dataSize, firstRaw.length - a.dataOffset, secondRaw.length - b.dataOffset));
+    const blockDiff = compareByteRegion(firstRaw, secondRaw, a.dataOffset, b.dataOffset, safeLength);
+    const extraBytes = Math.abs(a.dataSize - b.dataSize);
+    const changedBytes = blockDiff.changedBytes + extraBytes;
+    if (changedBytes === 0 && layoutSame) continue;
+
+    if (!layoutSame) structurallyChanged++;
+
+    const firstFields = fixedPrefixFieldRanges(firstRaw, a, first.schema).fields;
+    const secondFields = fixedPrefixFieldRanges(secondRaw, b, second.schema).fields;
+    const secondByField = new Map(secondFields.map(f => [f.fieldIndex, f]));
+    const changedFixedFields = [];
+
+    for (const field of firstFields) {
+      if (!field.present || field.startOffset === null) continue;
+      const other = secondByField.get(field.fieldIndex);
+      if (!other || !other.present || other.startOffset === null) {
+        changedFixedFields.push({
+          fieldIndex: field.fieldIndex,
+          name: field.name,
+          typeName: field.typeName,
+          status: other?.present === false ? 'presence_changed' : 'unmapped_in_second',
+          changedBytes: 0
+        });
+        continue;
+      }
+      const fieldLength = Math.min(field.endOffset - field.startOffset, other.endOffset - other.startOffset);
+      const diff = compareByteRegion(firstRaw, secondRaw, field.startOffset, other.startOffset, fieldLength);
+      const sizeDelta = Math.abs((field.endOffset - field.startOffset) - (other.endOffset - other.startOffset));
+      if (diff.changedBytes > 0 || sizeDelta > 0) {
+        changedFixedFields.push({
+          fieldIndex: field.fieldIndex,
+          name: field.name,
+          typeName: field.typeName,
+          status: sizeDelta ? 'size_changed' : 'changed',
+          relativeStart: field.relativeStart,
+          relativeEnd: field.relativeEnd,
+          changedBytes: diff.changedBytes + sizeDelta
+        });
+      }
+    }
+
+    const fixedMappedBytes = changedFixedFields.reduce((sum, f) => sum + (f.changedBytes || 0), 0);
+    const className = b.className || a.className;
+    const bucket = classChanges.get(className) || { className, changedObjects: 0, changedBytes: 0 };
+    bucket.changedObjects++;
+    bucket.changedBytes += changedBytes;
+    classChanges.set(className, bucket);
+
+    changedObjects.push({
+      firstEntryIndex: a.index,
+      secondEntryIndex: b.index,
+      classIndex: b.classIndex,
+      className,
+      matchMethod: pair.matchMethod,
+      firstDataOffset: a.dataOffset,
+      firstDataSize: a.dataSize,
+      secondDataOffset: b.dataOffset,
+      secondDataSize: b.dataSize,
+      layoutSame,
+      changedBytes,
+      changedFixedFields: changedFixedFields.slice(0, 32),
+      fixedPrefixFieldCount: firstFields.filter(f => f.startOffset !== null).length,
+      unmappedChangedBytes: Math.max(0, changedBytes - fixedMappedBytes)
+    });
+  }
+
+  const added = secondEntries.filter(e => !secondUsed.has(e.index));
+  const removed = firstEntries.filter(e => !firstUsed.has(e.index));
+  const topChangedClasses = Array.from(classChanges.values())
+    .sort((a, b) => b.changedBytes - a.changedBytes || b.changedObjects - a.changedObjects)
+    .slice(0, 40);
+
+  return {
+    matchedObjects: matches.length,
+    addedObjects: added.length,
+    removedObjects: removed.length,
+    structurallyChangedObjects: structurallyChanged,
+    changedObjectCount: changedObjects.length,
+    changedObjects: changedObjects.slice(0, 200),
+    changedObjectsReturned: Math.min(200, changedObjects.length),
+    changedObjectsTruncated: changedObjects.length > 200,
+    topChangedClasses,
+    fieldMappingMode: 'FIXED_PREFIX_SCHEMA_ONLY',
+    note: 'Read-only structural correlation. Objects match by class/sentinel tuple with ordinal, then entry-index+class fallback. Field changes cover only fixed-width fields decoded from the object prefix; dynamic/nested regions remain unmapped.'
+  };
+}
+
 function compareDecodedSaveFiles(firstPath, secondPath, options = {}) {
   const maxChangedChunks = options.maxChangedChunks === undefined ? 200 : options.maxChangedChunks;
   const first = decodeSaveContainer(firstPath);
@@ -534,6 +753,7 @@ function compareDecodedSaveFiles(firstPath, secondPath, options = {}) {
     schemaSame: first.schema.fingerprint === second.schema.fingerprint,
     tocCountDelta: second.toc.entryCount - first.toc.entryCount,
     rawSizeDelta: second.rawSize - first.rawSize,
+    objectCorrelation: correlateParcObjects(first, second, firstRaw, secondRaw),
     note: 'Raw PARC byte differences are observations only. Object/field semantic meaning is not inferred.'
   };
 }
