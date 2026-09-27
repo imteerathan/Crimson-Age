@@ -57,7 +57,7 @@ The project uses **one version number only**, stored in `package.json`.
 
 - Normal releases use SemVer: `X.Y.Z`.
 - The same `X.Y.Z` value is used for the app, installer filename, Git tag, GitHub Release, and updater metadata.
-- The next patch after `0.3.18` is `0.3.19`, then `0.3.20`, and so on.
+- Patch releases advance sequentially, for example `0.3.19` -> `0.3.20`.
 - There is no separate public version, updater version, base version, or hotfix suffix.
 
 `electron-updater` reads the same application version from Electron/package metadata. This keeps the version shown to the user and the version used by the updater identical.
