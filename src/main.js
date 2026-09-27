@@ -879,9 +879,7 @@ function configureUpdater() {
     emitUpdaterState({
       status: 'UPDATE_AVAILABLE',
       message: `Version ${info.version} is available.`,
-      availableVersion: info.version,
-      availablePublicVersion: info.releaseName?.match(/v(\d+(?:\.\d+){2,3})/i)?.[1] || null,
-      releaseName: info.releaseName || ''
+      availableVersion: info.version
     })
   );
   autoUpdater.on('update-not-available', info =>
@@ -889,7 +887,6 @@ function configureUpdater() {
       status: 'UP_TO_DATE',
       message: `Already on the latest updater build (${info.version}).`,
       availableVersion: null,
-      availablePublicVersion: null,
       downloaded: false,
       error: null
     })
