@@ -23,10 +23,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Read package version
+      - name: Read version metadata
         id: version
         shell: bash
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "public=$(node -p "require('./versioning.json').publicVersion")" >> "$GITHUB_OUTPUT"
+
+      - name: Validate version metadata
+        shell: bash
+        run: |
+          node -e "const v=require('./versioning.json'); const p=require('./package.json'); if (!/^\d+\.\d+\.\d+(\.\d+)?$/.test(v.publicVersion)) throw new Error('Invalid publicVersion'); if (!/^\d+\.\d+\.\d+$/.test(v.updaterVersion)) throw new Error('Invalid updaterVersion'); if (p.version!==v.updaterVersion) throw new Error('package.json version must equal versioning.json updaterVersion'); if (v.releaseType==='hotfix' && (!v.baseVersion || !Number.isInteger(v.hotfixNumber) || v.hotfixNumber < 1)) throw new Error('Invalid hotfix metadata'); console.log(v); console.log(p.version);"
 
       - name: Check whether release already exists
         id: release_check
@@ -74,4 +81,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ steps.version.outputs.version }}"
-          gh release create "$TAG"             "dist/latest.yml"             "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe"             "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe.blockmap"             --repo "$GITHUB_REPOSITORY"             --title "Crimson Age $TAG"             --generate-notes
+          gh release create "$TAG"             "dist/latest.yml"             "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe"             "dist/Crimson-Age-Setup-${{ steps.version.outputs.version }}.exe.blockmap"             --repo "$GITHUB_REPOSITORY"             --title "Crimson Age v${{ steps.version.outputs.public }}"             --generate-notes
