@@ -30,8 +30,7 @@
       "src/**/*",
       "public/**/*",
       "data/**/*",
-      "package.json",
-      "versioning.json"
+      "package.json"
     ],
     "win": {
       "target": [

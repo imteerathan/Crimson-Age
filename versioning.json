@@ -1,6 +1,0 @@
-{
-  "publicVersion": "0.3.18",
-  "releaseType": "release",
-  "updaterVersion": "0.3.18",
-  "notes": "Standard sequential versioning. Public version and updater version are the same."
-}

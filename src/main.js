@@ -4,23 +4,6 @@ const fs = require('fs');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const { autoUpdater } = require('electron-updater');
-const VERSIONING_PATH = path.join(__dirname, '../versioning.json');
-let VERSION_INFO;
-try {
-  VERSION_INFO = require(VERSIONING_PATH);
-} catch (err) {
-  // Keep the desktop app bootable even if a packaging rule accidentally omits
-  // versioning.json. The release build also explicitly includes this file.
-  VERSION_INFO = {
-    publicVersion: app.getVersion(),
-    releaseType: 'fallback',
-    baseVersion: app.getVersion(),
-    hotfixNumber: null,
-    updaterVersion: app.getVersion()
-  };
-  console.error('Crimson Age versioning metadata unavailable:', err?.message || String(err));
-}
-
 let win;
 let db;
 let logFile;
@@ -29,8 +12,7 @@ let updaterState = {
   message: 'Updater ready',
   version: app.getVersion(),
   downloaded: false,
-  error: null,
-  publicVersion: VERSION_INFO.publicVersion
+  error: null
 };
 
 function dataDir() {
@@ -42,7 +24,7 @@ function baselineSnapshotDir() {
 }
 
 function emitUpdaterState(extra = {}) {
-  updaterState = { ...updaterState, ...extra, version: app.getVersion(), publicVersion: VERSION_INFO.publicVersion };
+  updaterState = { ...updaterState, ...extra, version: app.getVersion() };
   if (win && !win.isDestroyed()) win.webContents.send('updater:state', updaterState);
   console.log('Updater state', updaterState);
 }
@@ -897,9 +879,7 @@ function configureUpdater() {
     emitUpdaterState({
       status: 'UPDATE_AVAILABLE',
       message: `Version ${info.version} is available.`,
-      availableVersion: info.version,
-      availablePublicVersion: info.releaseName?.match(/v(\d+(?:\.\d+){2,3})/i)?.[1] || null,
-      releaseName: info.releaseName || ''
+      availableVersion: info.version
     })
   );
   autoUpdater.on('update-not-available', info =>
@@ -907,7 +887,6 @@ function configureUpdater() {
       status: 'UP_TO_DATE',
       message: `Already on the latest updater build (${info.version}).`,
       availableVersion: null,
-      availablePublicVersion: null,
       downloaded: false,
       error: null
     })
@@ -957,11 +936,7 @@ ipcMain.handle('db:info', () => {
     records: db.prepare('SELECT COUNT(*) n FROM ca_record').get().n,
     baselines: db.prepare('SELECT COUNT(*) n FROM save_baseline').get().n,
     logsPath: app.getPath('logs'),
-    version: app.getVersion(),
-    publicVersion: VERSION_INFO.publicVersion,
-    versionType: VERSION_INFO.releaseType,
-    versionBase: VERSION_INFO.baseVersion || null,
-    hotfixNumber: VERSION_INFO.hotfixNumber ?? null
+    version: app.getVersion()
   };
 });
 
