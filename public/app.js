@@ -46,8 +46,8 @@ function bindUpdater() {
       updater = await window.crimsonAge.checkForUpdates();
 
       if (updater.status === 'UPDATE_AVAILABLE') {
-        const publicVersion = updater.availableVersion ? `v${updater.availableVersion}` : 'unknown version';
-        if (confirm(`Crimson Age ${publicVersion} is available. Download now?`)) {
+        const availableVersion = updater.availableVersion ? `v${updater.availableVersion}` : 'unknown version';
+        if (confirm(`Crimson Age ${availableVersion} is available. Download now?`)) {
           updater = await window.crimsonAge.downloadUpdate();
         }
       }
