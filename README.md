@@ -38,7 +38,7 @@ GitHub automatic updates require the release assets to be reachable by the packa
 - SQLite persistence
 - Checklist persistence
 - Save metadata + SHA-256 baseline
-- Read-only PARC object correlation with safe primitive/enum field-value previews
+- Read-only PARC object correlation with safe primitive/enum/scalar-alias field-value previews
 - Baseline history
 - Local logging
 - Windows NSIS + portable packaging
@@ -46,6 +46,8 @@ GitHub automatic updates require the release assets to be reachable by the packa
 - Placeholder map renderer only
 
 Not yet claimed:
+D1.8 extends value previews with an allowlisted set of scalar aliases (for example `TStat`, `TLevel`, and `TStackCount`). These are shown as unsigned storage-level interpretations only; they are not treated as full semantic type resolution.
+
 
 - Real game map
 - Semantic Save decoding
