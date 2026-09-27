@@ -38,7 +38,7 @@ GitHub automatic updates require the release assets to be reachable by the packa
 - SQLite persistence
 - Checklist persistence
 - Save metadata + SHA-256 baseline
-- Read-only PARC object correlation with safe primitive/enum/scalar-alias field-value previews
+- Read-only PARC object correlation with safe primitive/enum/scalar-alias field-value previews and searchable change filtering
 - Baseline history
 - Local logging
 - Windows NSIS + portable packaging
@@ -55,6 +55,8 @@ D1.8 extends value previews with an allowlisted set of scalar aliases (for examp
 - Complete canonical database
 
 ## Versioning policy
+
+D1.9 adds a local search/filter field to the Save Object Correlation view so changed classes, fields, types, and decoded values can be located without manually scanning the result list.
 
 The project uses **one version number only**, stored in `package.json`.
 
