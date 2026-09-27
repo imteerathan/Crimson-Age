@@ -53,13 +53,11 @@ Not yet claimed:
 
 ## Versioning policy
 
-The **public version** is the user-facing Crimson Age version:
+The project uses **one version number only**, stored in `package.json`.
 
-- `v.X.Y.Z` for normal builds.
-- `v.X.Y.Z.N` for hotfix N on the base version.
+- Normal releases use SemVer: `X.Y.Z`.
+- The same `X.Y.Z` value is used for the app, installer filename, Git tag, GitHub Release, and updater metadata.
+- The next patch after `0.3.18` is `0.3.19`, then `0.3.20`, and so on.
+- There is no separate public version, updater version, base version, or hotfix suffix.
 
-For the project roadmap, X is the Major Update generation (0 = test, 1 = Full Release, 2 = Full Upgrade 1, 3 = Full Upgrade 2, and so on). Y is the Minor Update number (0-9999). Z is the Patch number.
-
-The updater engine uses a separate three-part SemVer value because electron-updater validates the application version as SemVer. This technical value is not the public version shown to users. The mapping is stored in `versioning.json`.
-
-The current build after the D1.6 hotfix cycle uses public version `v0.3.15.2` with updater build `0.3.17`.
+`electron-updater` reads the same application version from Electron/package metadata. This keeps the version shown to the user and the version used by the updater identical.
