@@ -4,7 +4,22 @@ const fs = require('fs');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const { autoUpdater } = require('electron-updater');
-const VERSION_INFO = require('../versioning.json');
+const VERSIONING_PATH = path.join(__dirname, '../versioning.json');
+let VERSION_INFO;
+try {
+  VERSION_INFO = require(VERSIONING_PATH);
+} catch (err) {
+  // Keep the desktop app bootable even if a packaging rule accidentally omits
+  // versioning.json. The release build also explicitly includes this file.
+  VERSION_INFO = {
+    publicVersion: app.getVersion(),
+    releaseType: 'fallback',
+    baseVersion: app.getVersion(),
+    hotfixNumber: null,
+    updaterVersion: app.getVersion()
+  };
+  console.error('Crimson Age versioning metadata unavailable:', err?.message || String(err));
+}
 
 let win;
 let db;
