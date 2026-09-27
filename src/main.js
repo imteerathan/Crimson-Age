@@ -333,6 +333,7 @@ function parseParcToc(raw, schema) {
   const parseCount = Math.min(entryCount, maxEntries);
   const classMap = new Map();
   const entries = [];
+  const allEntries = [];
 
   for (let i = 0; i < parseCount; i++) {
     const off = tocStart + i * 20;
@@ -351,7 +352,9 @@ function parseParcToc(raw, schema) {
     if (dataOffset > raw.length || dataSize > raw.length - dataOffset) current.invalidBounds++;
     classMap.set(classIndex, current);
 
-    if (entries.length < 128) entries.push({ index: i, classIndex, className, sentinel1, sentinel2, dataOffset, dataSize });
+    const tocEntry = { index: i, classIndex, className, sentinel1, sentinel2, dataOffset, dataSize };
+    allEntries.push(tocEntry);
+    if (entries.length < 128) entries.push(tocEntry);
   }
 
   return {
@@ -362,7 +365,8 @@ function parseParcToc(raw, schema) {
     streamSizeMatchesRaw: streamSize === raw.length,
     boundsValid: Array.from(classMap.values()).every(x => x.invalidBounds === 0) && parseCount === entryCount,
     classSummaries: Array.from(classMap.values()).sort((a, b) => a.classIndex - b.classIndex),
-    firstEntries: entries
+    firstEntries: entries,
+    allEntries
   };
 }
 
