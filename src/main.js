@@ -364,7 +364,7 @@ ipcMain.handle('save:pick', async () => {
 
 
 function compareSaveFiles(firstPath, secondPath, options = {}) {
-  const maxChangedChunks = options.maxChangedChunks ?? 200;
+  const maxChangedChunks = options.maxChangedChunks === undefined ? 200 : options.maxChangedChunks;
   if (!firstPath || !secondPath) throw new Error('Two save files are required.');
   if (firstPath === secondPath) throw new Error('Cannot compare the same snapshot twice.');
   if (!fs.existsSync(firstPath) || !fs.existsSync(secondPath)) throw new Error('One or both save files no longer exist.');
