@@ -20,6 +20,10 @@ function dataDir() {
   return path.join(app.getPath('userData'), 'data');
 }
 
+function baselineSnapshotDir() {
+  return path.join(dataDir(), 'baseline-snapshots');
+}
+
 function emitUpdaterState(extra = {}) {
   updaterState = { ...updaterState, ...extra, version: app.getVersion() };
   if (win && !win.isDestroyed()) win.webContents.send('updater:state', updaterState);
@@ -59,6 +63,15 @@ function initDb() {
 
   db = new Database(dbPath);
   db.pragma('journal_mode=WAL');
+  try {
+    const columns = db.prepare("PRAGMA table_info(save_baseline)").all();
+    if (!columns.some(c => c.name === 'snapshot_path')) {
+      db.exec('ALTER TABLE save_baseline ADD COLUMN snapshot_path TEXT');
+    }
+  } catch (err) {
+    console.error('save_baseline migration failed', err);
+    throw err;
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
     CREATE TABLE IF NOT EXISTS player_state(id INTEGER PRIMARY KEY CHECK(id=1), json TEXT NOT NULL);
@@ -79,7 +92,8 @@ function initDb() {
       file_size INTEGER NOT NULL,
       last_modified TEXT NOT NULL,
       sha256 TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      snapshot_path TEXT
     );
   `);
 
@@ -316,11 +330,26 @@ ipcMain.handle('save:pick', async () => {
 
   const createdAt = new Date().toISOString();
 
-  db.prepare(`
+  fs.mkdirSync(baselineSnapshotDir(), { recursive: true });
+
+  const insert = db.prepare(`
     INSERT INTO save_baseline(label,file_name,file_path,file_size,last_modified,sha256,created_at)
     VALUES(?,?,?,?,?,?,?)
   `).run(null, baseline.name, baseline.path, baseline.size,
          baseline.lastModified, baseline.sha256, createdAt);
+
+  const snapshotPath = path.join(
+    baselineSnapshotDir(),
+    `baseline-${insert.lastInsertRowid}-${baseline.sha256}.save`
+  );
+  await fs.promises.copyFile(baseline.path, snapshotPath);
+  const snapshotStat = await fs.promises.stat(snapshotPath);
+  if (snapshotStat.size !== baseline.size) {
+    throw new Error('Baseline snapshot size verification failed.');
+  }
+
+  db.prepare('UPDATE save_baseline SET snapshot_path=? WHERE id=?')
+    .run(snapshotPath, insert.lastInsertRowid);
 
   console.log('Save baseline captured', {
     file: baseline.name,
@@ -335,6 +364,7 @@ ipcMain.handle('save:pick', async () => {
 
 function compareSaveFiles(firstPath, secondPath) {
   if (!firstPath || !secondPath) throw new Error('Two save files are required.');
+  if (firstPath === secondPath) throw new Error('Cannot compare the same snapshot twice.');
   if (!fs.existsSync(firstPath) || !fs.existsSync(secondPath)) throw new Error('One or both save files no longer exist.');
 
   const first = fs.readFileSync(firstPath);
