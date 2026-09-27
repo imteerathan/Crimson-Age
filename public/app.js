@@ -5,7 +5,7 @@ let lastAnalysis = null;
 let lastDiff = null;
 let lastContainerAnalysis = null;
 let lastRawDiff = null;
-let updater = { status: 'IDLE', message: 'Updater ready', version: '', publicVersion: '' };
+let updater = { status: 'IDLE', message: 'Updater ready', version: '' };
 
 const app = document.querySelector('#app');
 const updateButton = document.querySelector('#update');
@@ -46,7 +46,7 @@ function bindUpdater() {
       updater = await window.crimsonAge.checkForUpdates();
 
       if (updater.status === 'UPDATE_AVAILABLE') {
-        const publicVersion = updater.availablePublicVersion ? `v${updater.availablePublicVersion}` : `updater build ${updater.availableVersion}`;
+        const publicVersion = updater.availableVersion ? `v${updater.availableVersion}` : 'unknown version';
         if (confirm(`Crimson Age ${publicVersion} is available. Download now?`)) {
           updater = await window.crimsonAge.downloadUpdate();
         }
@@ -117,7 +117,7 @@ function fmtBytes(value) {
 function updaterCard() {
   const status = esc(updater.status || 'IDLE');
   const message = esc(updater.message || 'Updater ready');
-  const version = esc(updater.availablePublicVersion ? `v${updater.availablePublicVersion}` : (updater.publicVersion ? `v${updater.publicVersion}` : updater.availableVersion || updater.version || '—'));
+  const version = esc(updater.availableVersion || updater.version || '—');
   const progress = Number.isFinite(updater.progress) ? `${updater.progress}%` : '';
 
   return `
@@ -134,13 +134,13 @@ function updaterCard() {
 
 async function render() {
   const info = await window.crimsonAge.dbInfo();
-  if (appVersion) appVersion.textContent = `v${info.publicVersion || info.version || '—'}`;
+  if (appVersion) appVersion.textContent = `v${info.version || '—'}`;
   let html = '';
 
   if (view === 'home') {
     html = `
       <h1>Crimson Age Desktop</h1>
-      <p class="muted">Windows-first · local field test · public ${esc(info.publicVersion || info.version)}</p>
+      <p class="muted">Windows-first · local field test · version ${esc(info.version)}</p>
       ${updaterCard()}
       <div class="grid">
         <div class="card"><div class="muted">Current Phase</div><div class="big">D1</div></div>
