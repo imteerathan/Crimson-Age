@@ -455,22 +455,35 @@ ipcMain.handle('save:exportData', async () => {
   let latestDiff = null;
 
   if (snapshotBaselines.length >= 1) {
-    latestAnalysis = analyzeSaveStructure(snapshotBaselines[0].snapshotPath);
+    try {
+      latestAnalysis = analyzeSaveStructure(snapshotBaselines[0].snapshotPath);
+    } catch (err) {
+      latestAnalysis = {
+        exportError: `Latest snapshot analysis failed: ${err?.message || String(err)}`
+      };
+    }
   }
 
   if (snapshotBaselines.length >= 2) {
-    latestDiff = compareSaveFiles(
-      snapshotBaselines[1].snapshotPath,
-      snapshotBaselines[0].snapshotPath,
-      { maxChangedChunks: null }
-    );
+    try {
+      latestDiff = compareSaveFiles(
+        snapshotBaselines[1].snapshotPath,
+        snapshotBaselines[0].snapshotPath,
+        { maxChangedChunks: null }
+      );
+    } catch (err) {
+      latestDiff = {
+        exportError: `Latest baseline diff failed: ${err?.message || String(err)}`
+      };
+    }
   }
 
   let logTail = null;
   if (logFile) {
     try {
-      const logText = await fs.promises.readFile(logFile, 'utf8');
-      logTail = logText.slice(-200000);
+      const logBuffer = await fs.promises.readFile(logFile);
+      const tailBuffer = logBuffer.subarray(Math.max(0, logBuffer.length - 200000));
+      logTail = tailBuffer.toString('utf8');
     } catch (err) {
       logTail = `Unable to read log: ${err?.message || String(err)}`;
     }
