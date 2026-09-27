@@ -693,7 +693,10 @@ function correlateParcObjects(first, second, firstRaw, secondRaw, options = {}) 
           status: sizeDelta ? 'size_changed' : 'changed',
           relativeStart: field.relativeStart,
           relativeEnd: field.relativeEnd,
-          changedBytes: diff.changedBytes + sizeDelta
+          changedBytes: diff.changedBytes + sizeDelta,
+          valueKind: field.safeValue?.kind === other.safeValue?.kind ? (field.safeValue?.kind || null) : 'mixed',
+          firstValue: field.safeValue?.value ?? null,
+          secondValue: other.safeValue?.value ?? null
         });
       }
     }
@@ -741,8 +744,8 @@ function correlateParcObjects(first, second, firstRaw, secondRaw, options = {}) 
     changedObjectsReturned: maxChangedObjects === null ? changedObjects.length : Math.min(maxChangedObjects, changedObjects.length),
     changedObjectsTruncated: maxChangedObjects !== null && changedObjects.length > maxChangedObjects,
     topChangedClasses,
-    fieldMappingMode: 'FIXED_PREFIX_SCHEMA_ONLY',
-    note: 'Read-only structural correlation. Objects match by class/sentinel tuple with ordinal, then entry-index+class fallback. Field changes cover only fixed-width fields decoded from the object prefix; dynamic/nested regions remain unmapped.'
+    fieldMappingMode: 'FIXED_PREFIX_SCHEMA_SAFE_VALUES',
+    note: 'Read-only structural correlation. Objects match by class/sentinel tuple with ordinal, then entry-index+class fallback. Field changes cover fixed-width fields decoded from the object prefix. Safe primitive and enum values are surfaced directly; custom/unsupported field types fall back to raw hex. Dynamic/nested regions remain unmapped.'
   };
 }
 
