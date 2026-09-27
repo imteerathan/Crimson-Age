@@ -117,21 +117,21 @@ function fmtBytes(value) {
 function updaterCard() {
   const status = esc(updater.status || 'IDLE');
   const message = esc(updater.message || 'Updater ready');
-  const version = esc(updater.availableVersion || updater.version || '—');
+  const currentVersion = esc(updater.version || '—');
+  const availableVersion = updater.availableVersion ? esc(updater.availableVersion) : '—';
   const progress = Number.isFinite(updater.progress) ? `${updater.progress}%` : '';
 
   return `
     <div class="card update-card">
       <div class="section-title">Software Update</div>
       <div class="update-row"><span>Status</span><strong>${status}</strong></div>
-      <div class="update-row"><span>Public Version</span><strong>${version}</strong></div>
-      <div class="update-row"><span>Updater Build</span><strong>${esc(updater.availableVersion || updater.version || '—')}</strong></div>
+      <div class="update-row"><span>Current Version</span><strong>${currentVersion}</strong></div>
+      <div class="update-row"><span>Available Update</span><strong>${availableVersion}</strong></div>
       <p class="muted">${message}</p>
       ${progress ? `<div class="progress"><span style="width:${progress}"></span></div>` : ''}
       ${updater.status === 'READY_TO_INSTALL' ? '<button id="restartUpdate">Restart & Install Update</button>' : ''}
     </div>`;
 }
-
 async function render() {
   const info = await window.crimsonAge.dbInfo();
   if (appVersion) appVersion.textContent = `v${info.version || '—'}`;
