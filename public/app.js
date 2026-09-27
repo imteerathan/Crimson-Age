@@ -5,6 +5,7 @@ let lastAnalysis = null;
 let lastDiff = null;
 let lastContainerAnalysis = null;
 let lastRawDiff = null;
+let correlationSearch = '';
 let updater = { status: 'IDLE', message: 'Updater ready', version: '' };
 
 const app = document.querySelector('#app');
@@ -232,6 +233,8 @@ async function render() {
 
   app.innerHTML = html;
 
+  bindCorrelationSearch();
+
   document.querySelectorAll('select[data-i]').forEach(select => {
     select.onchange = async event => {
       try {
@@ -426,6 +429,30 @@ function renderObjectCorrelation(c) {
   if (!c) return '';
   const objects = c.changedObjects || [];
   const classes = c.topChangedClasses || [];
+  const q = correlationSearch.trim().toLowerCase();
+  const matchesText = value => String(value ?? '').toLowerCase().includes(q);
+  const fieldMatches = (f) => !q ||
+    matchesText(f.name) || matchesText(f.typeName) || matchesText(f.status) ||
+    matchesText(f.valueKind) || matchesText(f.firstValue) || matchesText(f.secondValue);
+  const filteredObjects = q
+    ? objects.filter(x =>
+        matchesText(x.className) ||
+        matchesText(x.classIndex) ||
+        matchesText(x.firstEntryIndex) ||
+        matchesText(x.secondEntryIndex) ||
+        matchesText(x.changedBytes) ||
+        (x.changedFixedFields || []).some(fieldMatches)
+      )
+    : objects;
+  const filteredClasses = q
+    ? classes.filter(x => matchesText(x.className) || matchesText(x.changedObjects) || matchesText(x.changedBytes))
+    : classes;
+  const displayedObjects = filteredObjects.slice(0, 100);
+  const displayedClasses = filteredClasses.slice(0, 20);
+  const resultText = q
+    ? `Showing ${displayedObjects.length} of ${filteredObjects.length} matching objects`
+    : `Showing ${displayedObjects.length} of ${objects.length} changed objects`;
+
   return '<div class="card" style="margin-top:14px"><h3>Save Object Correlation · D1.6 / D1.8</h3>' +
     '<div class="kv">' +
     '<div>Matched Objects</div><span>' + (c.matchedObjects ?? 0) + '</span>' +
@@ -436,24 +463,48 @@ function renderObjectCorrelation(c) {
     '<div>Offset-only shifts</div><span>' + (c.offsetShiftOnlyObjects ?? 0) + '</span>' +
     '<div>Field Mapping</div><span>' + esc(c.fieldMappingMode || '—') + '</span>' +
     '</div>' +
-    (classes.length ? '<h4>Changed classes</h4><div class="list">' +
-      classes.slice(0,20).map(x => '<div class="item"><b>' + esc(x.className) + '</b><span>objects=' + x.changedObjects + ' · bytes=' + x.changedBytes + '</span></div>').join('') +
-      '</div>' : '<p class="muted">No changed classes.</p>') +
-    (objects.length ? '<h4>Changed objects</h4><div class="list">' +
-      objects.slice(0,50).map(x => {
-        const fields = x.changedFixedFields || [];
+    '<div style="margin:12px 0"><input id="correlationSearch" type="search" value="' + esc(correlationSearch) + '" placeholder="Search classes, fields, types, or values…" style="width:100%;box-sizing:border-box"></div>' +
+    (q ? '<p class="muted">' + esc(resultText) + '</p>' : '') +
+    (displayedClasses.length ? '<h4>Changed classes</h4><div class="list">' +
+      displayedClasses.map(x => '<div class="item"><b>' + esc(x.className) + '</b><span>objects=' + x.changedObjects + ' · bytes=' + x.changedBytes + '</span></div>').join('') +
+      '</div>' : '<p class="muted">' + (q ? 'No changed classes match the search.' : 'No changed classes.') + '</p>') +
+    (displayedObjects.length ? '<h4>Changed objects</h4><div class="list">' +
+      displayedObjects.map(x => {
+        const fields = (x.changedFixedFields || []).filter(fieldMatches);
+        const displayFields = fields.length ? fields : (q ? [] : (x.changedFixedFields || []));
         return '<div class="item">' +
           '<div><b>' + esc(x.className) + '</b><div class="muted">entry ' + x.firstEntryIndex + ' → ' + x.secondEntryIndex +
           ' · bytes=' + x.changedBytes + ' · layout=' + (x.layoutSame ? 'stable' : 'changed') + '</div>' +
-          (fields.length ? '<div class="muted">Fields: ' + fields.map(f => {
-            const hasValues = f.firstValue !== null && f.firstValue !== undefined || f.secondValue !== null && f.secondValue !== undefined;
+          (displayFields.length ? '<div class="muted">Fields: ' + displayFields.map(f => {
+            const hasValues = (f.firstValue !== null && f.firstValue !== undefined) || (f.secondValue !== null && f.secondValue !== undefined);
             const values = hasValues ? ', ' + esc(String(f.firstValue ?? '—')) + ' → ' + esc(String(f.secondValue ?? '—')) : '';
             return esc(f.name) + ' [' + esc(f.status) + ', ' + f.changedBytes + ' B' + values + ']';
           }).join(' · ') + '</div>' : '') +
           '</div></div>';
       }).join('') +
-      '</div>' : '<p class="muted">No changed objects detected.</p>') +
+      '</div>' : '<p class="muted">' + (q ? 'No changed objects match the search.' : 'No changed objects detected.') + '</p>') +
     '<p class="muted">' + esc(c.note || '') + '</p></div>';
+}
+
+function bindCorrelationSearch() {
+  const input = document.querySelector('#correlationSearch');
+  if (!input) return;
+  input.oninput = () => {
+    correlationSearch = input.value;
+    const hadFocus = document.activeElement === input;
+    const pos = input.selectionStart;
+    render().then(() => {
+      if (hadFocus) {
+        const next = document.querySelector('#correlationSearch');
+        if (next) {
+          next.focus();
+          if (pos !== null) next.setSelectionRange(pos, pos);
+        }
+      }
+    }).catch(err => {
+      console.error('Correlation search render failed', err);
+    });
+  };
 }
 
 function renderRawDiff(d) {
