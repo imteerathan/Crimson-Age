@@ -207,6 +207,7 @@ async function render() {
       ${lastBaseline ? '<button id="analyze" style="margin-left:8px">Analyze Binary Structure</button>' : ''}
       <div id="picked" class="card" style="margin-top:14px">${lastBaseline ? renderBaseline(lastBaseline) : 'No new file selected in this session.'}</div>
       ${snapshotBaselines.length >= 2 ? '<button id="compareLatest" style="margin-left:8px">Compare Latest Two Baselines</button>' : ''}
+      <button id="exportData" style="margin-left:8px">Export Field Test Data</button>
       ${analysisCard}${diffCard}${history}`;
   } else {
     html = `
@@ -288,6 +289,34 @@ async function render() {
       }
     };
   }
+  const exportData = document.querySelector('#exportData');
+  if (exportData) {
+    exportData.onclick = async () => {
+      exportData.disabled = true;
+      exportData.textContent = 'Exporting…';
+      try {
+        const result = await window.crimsonAge.exportFieldTestData();
+        if (!result || result.canceled) return;
+        alert(
+          'Field test data exported successfully.\\n\\n' +
+          'File: ' + result.path + '\\n' +
+          'Size: ' + fmtBytes(result.bytes) + '\\n' +
+          (result.changedChunks !== null && result.changedChunks !== undefined
+            ? 'Diff chunks: ' + result.changedChunks + '\\n'
+            : '') +
+          'Full changed regions are included in the JSON export.'
+        );
+        console.log('Field test export complete', result);
+      } catch (err) {
+        console.error('Field test export failed', err);
+        alert('Field test export failed: ' + (err?.message || err));
+      } finally {
+        exportData.disabled = false;
+        exportData.textContent = 'Export Field Test Data';
+      }
+    };
+  }
+
   const analyze = document.querySelector('#analyze');
   if (analyze) {
     analyze.onclick = async () => {
