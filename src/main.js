@@ -449,7 +449,7 @@ function decodeSaveContainer(filePath) {
     limitations: [
       'Read-only diagnostic decode. No save file writes are performed.',
       'Schema field semantics are reported only where directly decoded from the PARC schema.',
-      'Object field values are not yet fully decoded.'
+      'Fixed-width primitive and enum field values are decoded when their schema type is directly supported; custom and nested values remain diagnostic-only.'
     ]
   };
 }
