@@ -104,6 +104,436 @@ function initDb() {
   }
 }
 
+const SAVE_DEFAULT_KEY_HEX = '9a4beb127f9e748b148d6690c25cc9379a315bd56c28af6319fd559f1152ac00';
+const SAVE_HEADER_SIZE = 0x80;
+const SAVE_NONCE_OFFSET = 0x1A;
+const SAVE_HMAC_OFFSET = 0x2A;
+const SAVE_NONCE_SIZE = 0x10;
+const SAVE_HMAC_SIZE = 0x20;
+const RAW_MAGIC = Buffer.from([0xFF, 0xFF, 0x04, 0x00]);
+
+function u16le(buf, offset) {
+  if (offset + 2 > buf.length) throw new Error('u16 read overruns buffer');
+  return buf.readUInt16LE(offset);
+}
+
+function u32le(buf, offset) {
+  if (offset + 4 > buf.length) throw new Error('u32 read overruns buffer');
+  return buf.readUInt32LE(offset);
+}
+
+function rotl32(v, n) {
+  return ((v << n) | (v >>> (32 - n))) >>> 0;
+}
+
+function chachaQuarterRound(state, a, b, c, d) {
+  state[a] = (state[a] + state[b]) >>> 0;
+  state[d] = rotl32((state[d] ^ state[a]) >>> 0, 16);
+  state[c] = (state[c] + state[d]) >>> 0;
+  state[b] = rotl32((state[b] ^ state[c]) >>> 0, 12);
+  state[a] = (state[a] + state[b]) >>> 0;
+  state[d] = rotl32((state[d] ^ state[a]) >>> 0, 8);
+  state[c] = (state[c] + state[d]) >>> 0;
+  state[b] = rotl32((state[b] ^ state[c]) >>> 0, 7);
+}
+
+function chacha20Block(key32, counterNonce16) {
+  if (key32.length !== 32 || counterNonce16.length !== 16) {
+    throw new Error('ChaCha20 requires a 32-byte key and 16-byte counter/nonce');
+  }
+  const state = new Uint32Array(16);
+  state.set([0x61707865, 0x3320646E, 0x79622D32, 0x6B206574]);
+  for (let i = 0; i < 8; i++) state[4 + i] = key32.readUInt32LE(i * 4);
+  for (let i = 0; i < 4; i++) state[12 + i] = counterNonce16.readUInt32LE(i * 4);
+
+  const working = new Uint32Array(state);
+  for (let i = 0; i < 10; i++) {
+    chachaQuarterRound(working, 0, 4, 8, 12);
+    chachaQuarterRound(working, 1, 5, 9, 13);
+    chachaQuarterRound(working, 2, 6, 10, 14);
+    chachaQuarterRound(working, 3, 7, 11, 15);
+    chachaQuarterRound(working, 0, 5, 10, 15);
+    chachaQuarterRound(working, 1, 6, 11, 12);
+    chachaQuarterRound(working, 2, 7, 8, 13);
+    chachaQuarterRound(working, 3, 4, 9, 14);
+  }
+
+  const out = Buffer.alloc(64);
+  for (let i = 0; i < 16; i++) out.writeUInt32LE((working[i] + state[i]) >>> 0, i * 4);
+  return out;
+}
+
+function chacha20Xor(key32, counterNonce16, data) {
+  const words = [
+    counterNonce16.readUInt32LE(0),
+    counterNonce16.readUInt32LE(4),
+    counterNonce16.readUInt32LE(8),
+    counterNonce16.readUInt32LE(12)
+  ];
+  const out = Buffer.alloc(data.length);
+  for (let pos = 0; pos < data.length; pos += 64) {
+    const ctr = Buffer.alloc(16);
+    for (let i = 0; i < 4; i++) ctr.writeUInt32LE(words[i] >>> 0, i * 4);
+    const stream = chacha20Block(key32, ctr);
+    const count = Math.min(64, data.length - pos);
+    for (let i = 0; i < count; i++) out[pos + i] = data[pos + i] ^ stream[i];
+    words[0] = (words[0] + 1) >>> 0;
+    if (words[0] === 0) words[1] = (words[1] + 1) >>> 0;
+  }
+  return out;
+}
+
+function lz4BlockDecompress(src, expectedSize) {
+  const dst = Buffer.alloc(expectedSize);
+  let ip = 0;
+  let op = 0;
+
+  while (ip < src.length) {
+    const token = src[ip++];
+    let literalLen = token >>> 4;
+    if (literalLen === 15) {
+      while (ip < src.length) {
+        const s = src[ip++];
+        literalLen += s;
+        if (s !== 255) break;
+      }
+    }
+    if (ip + literalLen > src.length || op + literalLen > expectedSize) {
+      throw new Error('LZ4 literal overruns input/output');
+    }
+    src.copy(dst, op, ip, ip + literalLen);
+    ip += literalLen;
+    op += literalLen;
+    if (ip >= src.length) break;
+
+    if (ip + 2 > src.length) throw new Error('LZ4 offset overruns input');
+    const matchOffset = src.readUInt16LE(ip);
+    ip += 2;
+    if (matchOffset === 0 || matchOffset > op) throw new Error('LZ4 invalid match offset');
+
+    let matchLen = token & 0x0F;
+    if (matchLen === 15) {
+      while (ip < src.length) {
+        const s = src[ip++];
+        matchLen += s;
+        if (s !== 255) break;
+      }
+    }
+    matchLen += 4;
+    if (op + matchLen > expectedSize) throw new Error('LZ4 match overruns output');
+
+    for (let i = 0; i < matchLen; i++) {
+      dst[op + i] = dst[op - matchOffset + i];
+    }
+    op += matchLen;
+  }
+
+  if (op !== expectedSize) throw new Error(`LZ4 decompressed size mismatch: expected ${expectedSize}, got ${op}`);
+  return dst;
+}
+
+function printableStrings(buf, minLength = 6) {
+  const strings = [];
+  let start = -1;
+  for (let i = 0; i <= buf.length; i++) {
+    const ok = i < buf.length && buf[i] >= 32 && buf[i] <= 126;
+    if (ok && start < 0) start = i;
+    if ((!ok || i === buf.length) && start >= 0) {
+      const end = i;
+      if (end - start >= minLength) {
+        strings.push({ offset: start, length: end - start, value: buf.subarray(start, end).toString('utf8').slice(0, 240) });
+      }
+      start = -1;
+    }
+  }
+  return strings;
+}
+
+function fnv1a64Append(hash, value) {
+  const data = Buffer.isBuffer(value) ? value : Buffer.from(String(value), 'utf8');
+  const prime = 0x100000001B3n;
+  const mask = 0xFFFFFFFFFFFFFFFFn;
+  let out = hash;
+  for (const byte of data) {
+    out ^= BigInt(byte);
+    out = (out * prime) & mask;
+  }
+  return out;
+}
+
+function fnv1a64String(hash, value) {
+  return fnv1a64Append(fnv1a64Append(hash, value), Buffer.from([0]));
+}
+
+function parseParcSchema(raw) {
+  if (!raw.subarray(0, 4).equals(RAW_MAGIC)) throw new Error('Raw blob does not start with PARC magic FFFF0400');
+
+  let pos = 0x0E;
+  const headerTag = u16le(raw, pos); pos += 2;
+  const headerZero = u16le(raw, pos); pos += 2;
+  const typeCount = u16le(raw, pos); pos += 2;
+  const rootLen = u32le(raw, pos); pos += 4;
+  if (rootLen > raw.length - pos) throw new Error('Root type name overruns raw blob');
+  const rootType = raw.subarray(pos, pos + rootLen).toString('utf8'); pos += rootLen;
+
+  const types = [];
+  let currentName = rootType;
+  let fingerprint = 14695981039346656037n;
+
+  for (let typeIndex = 0; typeIndex < typeCount; typeIndex++) {
+    const startOffset = pos;
+    const fieldCount = u16le(raw, pos); pos += 2;
+    const fields = [];
+    fingerprint = fnv1a64String(fingerprint, currentName);
+
+    for (let i = 0; i < fieldCount; i++) {
+      const nameLen = u32le(raw, pos); pos += 4;
+      if (nameLen > raw.length - pos) throw new Error('Field name overruns raw blob');
+      const name = raw.subarray(pos, pos + nameLen).toString('utf8'); pos += nameLen;
+
+      const typeLen = u32le(raw, pos); pos += 4;
+      if (typeLen > raw.length - pos) throw new Error('Field type overruns raw blob');
+      const typeName = raw.subarray(pos, pos + typeLen).toString('utf8'); pos += typeLen;
+
+      const metaKind = u16le(raw, pos);
+      const metaSize = u16le(raw, pos + 2);
+      const metaAux = u32le(raw, pos + 4);
+      pos += 8;
+
+      fields.push({ index: i, name, typeName, metaKind, metaSize, metaAux });
+      fingerprint = fnv1a64String(fingerprint, name);
+      fingerprint = fnv1a64String(fingerprint, typeName);
+      const meta = Buffer.alloc(8);
+      meta.writeUInt16LE(metaKind, 0);
+      meta.writeUInt16LE(metaSize, 2);
+      meta.writeUInt32LE(metaAux, 4);
+      fingerprint = fnv1a64Append(fingerprint, meta);
+    }
+
+    types.push({ index: typeIndex, name: currentName, fieldCount, startOffset, endOffset: pos, fields });
+
+    if (typeIndex + 1 < typeCount) {
+      const nextLen = u32le(raw, pos); pos += 4;
+      if (nextLen > raw.length - pos) throw new Error('Next type name overruns raw blob');
+      currentName = raw.subarray(pos, pos + nextLen).toString('utf8'); pos += nextLen;
+    }
+  }
+
+  return { headerTag, headerZero, typeCount, rootType, schemaEnd: pos, fingerprint: fingerprint.toString(16).padStart(16, '0'), types };
+}
+
+function parseParcToc(raw, schema) {
+  if (schema.schemaEnd + 12 > raw.length) throw new Error('PARC TOC header overruns raw blob');
+
+  const prefixZero = u32le(raw, schema.schemaEnd);
+  const entryCount = u32le(raw, schema.schemaEnd + 4);
+  const streamSize = u32le(raw, schema.schemaEnd + 8);
+  const tocStart = schema.schemaEnd + 12;
+  const maxEntries = Math.floor(Math.max(0, raw.length - tocStart) / 20);
+  const parseCount = Math.min(entryCount, maxEntries);
+  const classMap = new Map();
+  const entries = [];
+
+  for (let i = 0; i < parseCount; i++) {
+    const off = tocStart + i * 20;
+    const classIndex = u32le(raw, off);
+    const sentinel1 = u32le(raw, off + 4);
+    const sentinel2 = u32le(raw, off + 8);
+    const dataOffset = u32le(raw, off + 12);
+    const dataSize = u32le(raw, off + 16);
+    const className = schema.types[classIndex]?.name || `<class_${classIndex}>`;
+
+    const current = classMap.get(classIndex) || { classIndex, className, count: 0, totalBytes: 0, firstDataOffset: null, lastDataOffset: null, invalidBounds: 0 };
+    current.count++;
+    current.totalBytes += dataSize;
+    current.firstDataOffset = current.firstDataOffset === null ? dataOffset : Math.min(current.firstDataOffset, dataOffset);
+    current.lastDataOffset = current.lastDataOffset === null ? dataOffset : Math.max(current.lastDataOffset, dataOffset);
+    if (dataOffset > raw.length || dataSize > raw.length - dataOffset) current.invalidBounds++;
+    classMap.set(classIndex, current);
+
+    if (entries.length < 128) entries.push({ index: i, classIndex, className, sentinel1, sentinel2, dataOffset, dataSize });
+  }
+
+  return {
+    prefixZero,
+    entryCount,
+    parsedEntryCount: parseCount,
+    streamSize,
+    streamSizeMatchesRaw: streamSize === raw.length,
+    boundsValid: Array.from(classMap.values()).every(x => x.invalidBounds === 0) && parseCount === entryCount,
+    classSummaries: Array.from(classMap.values()).sort((a, b) => a.classIndex - b.classIndex),
+    firstEntries: entries
+  };
+}
+
+function decodeSaveContainer(filePath) {
+  const fileData = fs.readFileSync(filePath);
+  if (fileData.length < SAVE_HEADER_SIZE) throw new Error('SAVE container too small');
+
+  if (!fileData.subarray(0, 4).equals(RAW_MAGIC) && fileData.subarray(0, 4).toString('ascii') !== 'SAVE') {
+    throw new Error('Unsupported save: expected SAVE container or raw PARC blob');
+  }
+
+  if (fileData.subarray(0, 4).equals(RAW_MAGIC)) {
+    const rawSha256 = crypto.createHash('sha256').update(fileData).digest('hex');
+    const schema = parseParcSchema(fileData);
+    const toc = parseParcToc(fileData, schema);
+    return {
+      mode: 'RAW_PARC',
+      fileName: path.basename(filePath),
+      fileSize: fileData.length,
+      rawSize: fileData.length,
+      rawSha256,
+      rawMagic: fileData.subarray(0, 4).toString('hex'),
+      containerPresent: false,
+      hmacOk: null,
+      compression: 'NONE',
+      decryption: 'NONE',
+      schema,
+      toc,
+      rawInterestingStrings: printableStrings(fileData).filter(x => /savedGameVersion|KnowledgeSaveData|QuestSaveData|main.?quest|version/i.test(x.value)).slice(0, 200)
+    };
+  }
+
+  const payloadSize = u32le(fileData, 0x16);
+  if (fileData.length !== SAVE_HEADER_SIZE + payloadSize) throw new Error('SAVE payload size does not match file length');
+
+  const version = u16le(fileData, 0x04);
+  const flags = u16le(fileData, 0x06);
+  const floatFlag = fileData.readFloatLE(0x08);
+  const field0C = u32le(fileData, 0x0C);
+  const field10 = u16le(fileData, 0x10);
+  const uncompressedSize = u32le(fileData, 0x12);
+  const nonce = fileData.subarray(SAVE_NONCE_OFFSET, SAVE_NONCE_OFFSET + SAVE_NONCE_SIZE);
+  const storedHmac = fileData.subarray(SAVE_HMAC_OFFSET, SAVE_HMAC_OFFSET + SAVE_HMAC_SIZE);
+  const ciphertext = fileData.subarray(SAVE_HEADER_SIZE, SAVE_HEADER_SIZE + payloadSize);
+
+  const key = Buffer.from(SAVE_DEFAULT_KEY_HEX, 'hex');
+  const compressedPlaintext = chacha20Xor(key, nonce, ciphertext);
+  const calculatedHmac = crypto.createHmac('sha256', key).update(compressedPlaintext).digest();
+  const hmacOk = storedHmac.length === calculatedHmac.length && crypto.timingSafeEqual(storedHmac, calculatedHmac);
+  const raw = lz4BlockDecompress(compressedPlaintext, uncompressedSize);
+  const rawSha256 = crypto.createHash('sha256').update(raw).digest('hex');
+  const schema = parseParcSchema(raw);
+  const toc = parseParcToc(raw, schema);
+  const interesting = printableStrings(raw).filter(x => /savedGameVersion|KnowledgeSaveData|QuestSaveData|main.?quest|version/i.test(x.value)).slice(0, 200);
+
+  return {
+    mode: 'READ_ONLY_CONTAINER_DECODE',
+    fileName: path.basename(filePath),
+    fileSize: fileData.length,
+    rawSize: raw.length,
+    rawSha256,
+    rawMagic: raw.subarray(0, 4).toString('hex'),
+    containerPresent: true,
+    version,
+    flags,
+    floatFlag,
+    field0C,
+    field10,
+    uncompressedSize,
+    payloadSize,
+    payloadCompressionRatio: Number((raw.length / Math.max(1, payloadSize)).toFixed(4)),
+    nonceHex: nonce.toString('hex'),
+    storedHmacHex: storedHmac.toString('hex'),
+    calculatedHmacHex: calculatedHmac.toString('hex'),
+    hmacOk,
+    compression: 'LZ4_BLOCK',
+    decryption: 'CHACHA20',
+    schema,
+    toc,
+    rawInterestingStrings: interesting,
+    limitations: [
+      'Read-only diagnostic decode. No save file writes are performed.',
+      'Schema field semantics are reported only where directly decoded from the PARC schema.',
+      'Object field values are not yet fully decoded.'
+    ]
+  };
+}
+
+function readDecodedRaw(filePath) {
+  const fileData = fs.readFileSync(filePath);
+  if (fileData.subarray(0, 4).equals(RAW_MAGIC)) return fileData;
+  const payloadSize = u32le(fileData, 0x16);
+  const nonce = fileData.subarray(SAVE_NONCE_OFFSET, SAVE_NONCE_OFFSET + SAVE_NONCE_SIZE);
+  const ciphertext = fileData.subarray(SAVE_HEADER_SIZE, SAVE_HEADER_SIZE + payloadSize);
+  const plaintext = chacha20Xor(Buffer.from(SAVE_DEFAULT_KEY_HEX, 'hex'), nonce, ciphertext);
+  return lz4BlockDecompress(plaintext, u32le(fileData, 0x12));
+}
+
+function compareDecodedSaveFiles(firstPath, secondPath, options = {}) {
+  const maxChangedChunks = options.maxChangedChunks === undefined ? 200 : options.maxChangedChunks;
+  const first = decodeSaveContainer(firstPath);
+  const second = decodeSaveContainer(secondPath);
+  const firstRaw = readDecodedRaw(firstPath);
+  const secondRaw = readDecodedRaw(secondPath);
+  const minLength = Math.min(firstRaw.length, secondRaw.length);
+  const chunkSize = 64;
+  const changedChunks = [];
+  let changedBytes = 0;
+  let firstChangedOffset = null;
+  let lastChangedOffset = null;
+
+  for (let offset = 0; offset < minLength; offset += chunkSize) {
+    const end = Math.min(offset + chunkSize, minLength);
+    let different = false;
+    for (let i = offset; i < end; i++) {
+      if (firstRaw[i] !== secondRaw[i]) {
+        different = true;
+        changedBytes++;
+        if (firstChangedOffset === null) firstChangedOffset = i;
+        lastChangedOffset = i;
+      }
+    }
+    if (different) changedChunks.push({ offset, length: end - offset });
+  }
+
+  if (firstRaw.length !== secondRaw.length) {
+    const start = minLength;
+    const extra = Math.abs(firstRaw.length - secondRaw.length);
+    changedBytes += extra;
+    if (firstChangedOffset === null) firstChangedOffset = start;
+    lastChangedOffset = Math.max(start, Math.max(firstRaw.length, secondRaw.length) - 1);
+    changedChunks.push({ offset: start, length: extra, sizeChanged: true });
+  }
+
+  return {
+    mode: 'READ_ONLY_RAW_PARC_DIFF',
+    first: {
+      fileName: path.basename(firstPath),
+      fileSize: fs.statSync(firstPath).size,
+      rawSize: first.rawSize,
+      rawSha256: first.rawSha256,
+      schemaFingerprint: first.schema.fingerprint,
+      schemaTypeCount: first.schema.typeCount,
+      tocEntryCount: first.toc.entryCount,
+      tocParsedEntryCount: first.toc.parsedEntryCount
+    },
+    second: {
+      fileName: path.basename(secondPath),
+      fileSize: fs.statSync(secondPath).size,
+      rawSize: second.rawSize,
+      rawSha256: second.rawSha256,
+      schemaFingerprint: second.schema.fingerprint,
+      schemaTypeCount: second.schema.typeCount,
+      tocEntryCount: second.toc.entryCount,
+      tocParsedEntryCount: second.toc.parsedEntryCount
+    },
+    changed: first.rawSha256 !== second.rawSha256,
+    changedBytes,
+    changedChunkCount: changedChunks.length,
+    firstChangedOffset,
+    lastChangedOffset,
+    changedChunks: maxChangedChunks === null ? changedChunks : changedChunks.slice(0, maxChangedChunks),
+    changedChunksReturned: maxChangedChunks === null ? changedChunks.length : Math.min(changedChunks.length, maxChangedChunks),
+    changedChunksTruncated: maxChangedChunks !== null && changedChunks.length > maxChangedChunks,
+    schemaSame: first.schema.fingerprint === second.schema.fingerprint,
+    tocCountDelta: second.toc.entryCount - first.toc.entryCount,
+    rawSizeDelta: second.rawSize - first.rawSize,
+    note: 'Raw PARC byte differences are observations only. Object/field semantic meaning is not inferred.'
+  };
+}
+
 function analyzeSaveStructure(filePath) {
   const stat = fs.statSync(filePath);
   const buf = fs.readFileSync(filePath);
@@ -427,6 +857,17 @@ function compareSaveFiles(firstPath, secondPath, options = {}) {
   };
 }
 
+ipcMain.handle('save:analyzeContainer', (_, filePath) => {
+  console.log('IPC save:analyzeContainer', filePath);
+  if (!filePath || !fs.existsSync(filePath)) throw new Error('Save file no longer exists.');
+  return decodeSaveContainer(filePath);
+});
+
+ipcMain.handle('save:compareDecoded', (_, firstPath, secondPath) => {
+  console.log('IPC save:compareDecoded', { firstPath, secondPath });
+  return compareDecodedSaveFiles(firstPath, secondPath);
+});
+
 ipcMain.handle('save:analyzeStructure', (_, filePath) => {
   console.log('IPC save:analyzeStructure', filePath);
   if (!filePath || !fs.existsSync(filePath)) throw new Error('Save file no longer exists.');
@@ -453,14 +894,16 @@ ipcMain.handle('save:exportData', async () => {
   const snapshotBaselines = baselines.filter(b => b.snapshotPath);
   let latestAnalysis = null;
   let latestDiff = null;
+  let latestContainerAnalysis = null;
+  let latestRawDiff = null;
 
   if (snapshotBaselines.length >= 1) {
     try {
       latestAnalysis = analyzeSaveStructure(snapshotBaselines[0].snapshotPath);
+      latestContainerAnalysis = decodeSaveContainer(snapshotBaselines[0].snapshotPath);
     } catch (err) {
-      latestAnalysis = {
-        exportError: `Latest snapshot analysis failed: ${err?.message || String(err)}`
-      };
+      latestAnalysis = { exportError: `Latest snapshot analysis failed: ${err?.message || String(err)}` };
+      latestContainerAnalysis = { exportError: `Latest container decode failed: ${err?.message || String(err)}` };
     }
   }
 
@@ -471,10 +914,14 @@ ipcMain.handle('save:exportData', async () => {
         snapshotBaselines[0].snapshotPath,
         { maxChangedChunks: null }
       );
+      latestRawDiff = compareDecodedSaveFiles(
+        snapshotBaselines[1].snapshotPath,
+        snapshotBaselines[0].snapshotPath,
+        { maxChangedChunks: null }
+      );
     } catch (err) {
-      latestDiff = {
-        exportError: `Latest baseline diff failed: ${err?.message || String(err)}`
-      };
+      latestDiff = { exportError: `Latest baseline diff failed: ${err?.message || String(err)}` };
+      latestRawDiff = { exportError: `Latest raw PARC diff failed: ${err?.message || String(err)}` };
     }
   }
 
@@ -507,7 +954,9 @@ ipcMain.handle('save:exportData', async () => {
     playerState: JSON.parse(db.prepare('SELECT json FROM player_state WHERE id=1').get().json),
     baselines,
     latestAnalysis,
+    latestContainerAnalysis,
     latestDiff,
+    latestRawDiff,
     logs: {
       path: logFile,
       included: Boolean(logTail),
