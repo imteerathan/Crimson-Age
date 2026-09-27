@@ -33,7 +33,7 @@ jobs:
       - name: Validate version metadata
         shell: bash
         run: |
-          node -e "const v=require('./versioning.json'); if (!/^\d+\.\d+\.\d+(\.\d+)?$/.test(v.publicVersion)) throw new Error('Invalid publicVersion'); if (!/^\d+\.\d+\.\d+$/.test(v.updaterVersion)) throw new Error('Invalid updaterVersion'); if (v.releaseType==='hotfix' && (!v.baseVersion || !Number.isInteger(v.hotfixNumber) || v.hotfixNumber < 1)) throw new Error('Invalid hotfix metadata'); console.log(v);"
+          node -e "const v=require('./versioning.json'); const p=require('./package.json'); if (!/^\d+\.\d+\.\d+(\.\d+)?$/.test(v.publicVersion)) throw new Error('Invalid publicVersion'); if (!/^\d+\.\d+\.\d+$/.test(v.updaterVersion)) throw new Error('Invalid updaterVersion'); if (p.version!==v.updaterVersion) throw new Error('package.json version must equal versioning.json updaterVersion'); if (v.releaseType==='hotfix' && (!v.baseVersion || !Number.isInteger(v.hotfixNumber) || v.hotfixNumber < 1)) throw new Error('Invalid hotfix metadata'); console.log(v); console.log(p.version);"
 
       - name: Check whether release already exists
         id: release_check
