@@ -1,6 +1,6 @@
 {
   "name": "crimson-age-desktop",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "description": "Crimson Age Windows desktop companion",
   "private": true,
   "main": "src/main.js",
@@ -23,29 +23,12 @@
   "build": {
     "appId": "com.crimsonage.desktop",
     "productName": "Crimson Age",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "src/**/*",
-      "public/**/*",
-      "data/**/*",
-      "package.json"
-    ],
+    "directories": { "output": "dist" },
+    "files": ["src/**/*", "public/**/*", "data/**/*", "package.json"],
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
       ],
       "artifactName": "Crimson-Age-${version}.${ext}"
     },
