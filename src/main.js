@@ -464,6 +464,62 @@ function readDecodedRaw(filePath) {
   return lz4BlockDecompress(plaintext, u32le(fileData, 0x12));
 }
 
+function decodeSafeFixedFieldValue(raw, field, startOffset, endOffset) {
+  if (startOffset === null || endOffset === null || endOffset <= startOffset) return null;
+  const size = endOffset - startOffset;
+  const typeName = String(field.typeName || '').toLowerCase();
+
+  try {
+    if (typeName === 'bool' && size >= 1) {
+      return { kind: 'bool', value: raw[startOffset] !== 0 };
+    }
+    if (typeName === 'int8' && size >= 1) {
+      return { kind: 'int8', value: raw.readInt8(startOffset) };
+    }
+    if (typeName === 'uint8' && size >= 1) {
+      return { kind: 'uint8', value: raw.readUInt8(startOffset) };
+    }
+    if (typeName === 'int16' && size >= 2) {
+      return { kind: 'int16', value: raw.readInt16LE(startOffset) };
+    }
+    if (typeName === 'uint16' && size >= 2) {
+      return { kind: 'uint16', value: raw.readUInt16LE(startOffset) };
+    }
+    if (typeName === 'int32' && size >= 4) {
+      return { kind: 'int32', value: raw.readInt32LE(startOffset) };
+    }
+    if (typeName === 'uint32' && size >= 4) {
+      return { kind: 'uint32', value: raw.readUInt32LE(startOffset) };
+    }
+    if (typeName === 'int64' && size >= 8) {
+      return { kind: 'int64', value: raw.readBigInt64LE(startOffset).toString() };
+    }
+    if (typeName === 'uint64' && size >= 8) {
+      return { kind: 'uint64', value: raw.readBigUInt64LE(startOffset).toString() };
+    }
+    if (typeName === 'float' && size >= 4) {
+      return { kind: 'float', value: Number(raw.readFloatLE(startOffset).toPrecision(7)) };
+    }
+    if (typeName === 'double' && size >= 8) {
+      return { kind: 'double', value: Number(raw.readDoubleLE(startOffset).toPrecision(12)) };
+    }
+    if (field.metaKind === 2 && size === 1) {
+      return { kind: 'enum-code', value: raw.readUInt8(startOffset) };
+    }
+    if (field.metaKind === 2 && size === 2) {
+      return { kind: 'enum-code', value: raw.readUInt16LE(startOffset) };
+    }
+    if (field.metaKind === 2 && size === 4) {
+      return { kind: 'enum-code', value: raw.readUInt32LE(startOffset) };
+    }
+  } catch {}
+
+  return {
+    kind: 'hex',
+    value: raw.subarray(startOffset, endOffset).toString('hex')
+  };
+}
+
 function fixedPrefixFieldRanges(raw, entry, schema) {
   const typeDef = schema.types[entry.classIndex];
   if (!typeDef) return { maskByteCount: 0, maskBytes: [], fields: [], headerEnd: entry.dataOffset };
@@ -485,15 +541,17 @@ function fixedPrefixFieldRanges(raw, entry, schema) {
 
   for (let fieldIndex = 0; fieldIndex < typeDef.fields.length; fieldIndex++) {
     const field = typeDef.fields[fieldIndex];
+    const base = { fieldIndex, name: field.name, typeName: field.typeName, metaKind: field.metaKind, metaSize: field.metaSize };
     const maskByte = maskBytes[Math.floor(fieldIndex / 8)] || 0;
     const present = (maskByte & (1 << (fieldIndex % 8))) !== 0;
+
     if (!present) {
-      fields.push({ fieldIndex, name: field.name, typeName: field.typeName, present: false, startOffset: null, endOffset: null });
+      fields.push({ ...base, present: false, startOffset: null, endOffset: null });
       continue;
     }
 
     if (decodeStopped) {
-      fields.push({ fieldIndex, name: field.name, typeName: field.typeName, present: true, startOffset: null, endOffset: null, decodeKind: 'not_decoded' });
+      fields.push({ ...base, present: true, startOffset: null, endOffset: null, decodeKind: 'not_decoded' });
       continue;
     }
 
@@ -501,28 +559,26 @@ function fixedPrefixFieldRanges(raw, entry, schema) {
       const fieldEnd = cursor + field.metaSize;
       if (fieldEnd <= blockEnd) {
         fields.push({
-          fieldIndex,
-          name: field.name,
-          typeName: field.typeName,
+          ...base,
           present: true,
           startOffset: cursor,
           endOffset: fieldEnd,
           relativeStart: cursor - blockStart,
           relativeEnd: fieldEnd - blockStart,
-          decodeKind: 'fixed_prefix'
+          decodeKind: 'fixed_prefix',
+          safeValue: decodeSafeFixedFieldValue(raw, field, cursor, fieldEnd)
         });
         cursor = fieldEnd;
         continue;
       }
     }
 
-    fields.push({ fieldIndex, name: field.name, typeName: field.typeName, present: true, startOffset: null, endOffset: null, decodeKind: 'not_decoded' });
+    fields.push({ ...base, present: true, startOffset: null, endOffset: null, decodeKind: 'not_decoded' });
     decodeStopped = true;
   }
 
   return { maskByteCount, maskBytes, fields, headerEnd, decodedFieldCount: fields.filter(f => f.startOffset !== null).length };
 }
-
 function compareByteRegion(firstRaw, secondRaw, firstStart, secondStart, length) {
   let changedBytes = 0;
   const ranges = [];
