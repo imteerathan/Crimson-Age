@@ -542,7 +542,8 @@ function compareByteRegion(firstRaw, secondRaw, firstStart, secondStart, length)
   return { changedBytes, ranges };
 }
 
-function correlateParcObjects(first, second, firstRaw, secondRaw) {
+function correlateParcObjects(first, second, firstRaw, secondRaw, options = {}) {
+  const maxChangedObjects = options.maxChangedObjects === undefined ? 200 : options.maxChangedObjects;
   const firstEntries = first.toc.allEntries || first.toc.firstEntries || [];
   const secondEntries = second.toc.allEntries || second.toc.firstEntries || [];
   const firstUsed = new Set();
@@ -591,6 +592,7 @@ function correlateParcObjects(first, second, firstRaw, secondRaw) {
   const changedObjects = [];
   const classChanges = new Map();
   let structurallyChanged = 0;
+  let offsetShiftOnlyObjects = 0;
 
   for (const pair of matches) {
     const a = pair.first;
@@ -601,8 +603,11 @@ function correlateParcObjects(first, second, firstRaw, secondRaw) {
     const extraBytes = Math.abs(a.dataSize - b.dataSize);
     const changedBytes = blockDiff.changedBytes + extraBytes;
     if (changedBytes === 0 && layoutSame) continue;
-
-    if (!layoutSame) structurallyChanged++;
+    if (changedBytes === 0 && !layoutSame && a.dataSize === b.dataSize) {
+      offsetShiftOnlyObjects++;
+      continue;
+    }
+    if (!layoutSame && a.dataSize !== b.dataSize) structurallyChanged++;
 
     const firstFields = fixedPrefixFieldRanges(firstRaw, a, first.schema).fields;
     const secondFields = fixedPrefixFieldRanges(secondRaw, b, second.schema).fields;
@@ -657,6 +662,7 @@ function correlateParcObjects(first, second, firstRaw, secondRaw) {
       secondDataSize: b.dataSize,
       layoutSame,
       changedBytes,
+      offsetShiftOnly: false,
       changedFixedFields: changedFixedFields.slice(0, 32),
       fixedPrefixFieldCount: firstFields.filter(f => f.startOffset !== null).length,
       unmappedChangedBytes: Math.max(0, changedBytes - fixedMappedBytes)
@@ -674,10 +680,11 @@ function correlateParcObjects(first, second, firstRaw, secondRaw) {
     addedObjects: added.length,
     removedObjects: removed.length,
     structurallyChangedObjects: structurallyChanged,
+    offsetShiftOnlyObjects,
     changedObjectCount: changedObjects.length,
-    changedObjects: changedObjects.slice(0, 200),
-    changedObjectsReturned: Math.min(200, changedObjects.length),
-    changedObjectsTruncated: changedObjects.length > 200,
+    changedObjects: changedObjects.slice(0, maxChangedObjects === null ? changedObjects.length : maxChangedObjects),
+    changedObjectsReturned: maxChangedObjects === null ? changedObjects.length : Math.min(maxChangedObjects, changedObjects.length),
+    changedObjectsTruncated: maxChangedObjects !== null && changedObjects.length > maxChangedObjects,
     topChangedClasses,
     fieldMappingMode: 'FIXED_PREFIX_SCHEMA_ONLY',
     note: 'Read-only structural correlation. Objects match by class/sentinel tuple with ordinal, then entry-index+class fallback. Field changes cover only fixed-width fields decoded from the object prefix; dynamic/nested regions remain unmapped.'
@@ -686,6 +693,7 @@ function correlateParcObjects(first, second, firstRaw, secondRaw) {
 
 function compareDecodedSaveFiles(firstPath, secondPath, options = {}) {
   const maxChangedChunks = options.maxChangedChunks === undefined ? 200 : options.maxChangedChunks;
+  const maxChangedObjects = options.maxChangedObjects === undefined ? 200 : options.maxChangedObjects;
   const first = decodeSaveContainer(firstPath);
   const second = decodeSaveContainer(secondPath);
   const firstRaw = readDecodedRaw(firstPath);
@@ -753,7 +761,7 @@ function compareDecodedSaveFiles(firstPath, secondPath, options = {}) {
     schemaSame: first.schema.fingerprint === second.schema.fingerprint,
     tocCountDelta: second.toc.entryCount - first.toc.entryCount,
     rawSizeDelta: second.rawSize - first.rawSize,
-    objectCorrelation: correlateParcObjects(first, second, firstRaw, secondRaw),
+    objectCorrelation: correlateParcObjects(first, second, firstRaw, secondRaw, { maxChangedObjects }),
     note: 'Raw PARC byte differences are observations only. Object/field semantic meaning is not inferred.'
   };
 }
@@ -1141,7 +1149,7 @@ ipcMain.handle('save:exportData', async () => {
       latestRawDiff = compareDecodedSaveFiles(
         snapshotBaselines[1].snapshotPath,
         snapshotBaselines[0].snapshotPath,
-        { maxChangedChunks: null }
+        { maxChangedChunks: null, maxChangedObjects: null }
       );
     } catch (err) {
       latestDiff = { exportError: `Latest baseline diff failed: ${err?.message || String(err)}` };
