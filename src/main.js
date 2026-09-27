@@ -449,7 +449,7 @@ function decodeSaveContainer(filePath) {
     limitations: [
       'Read-only diagnostic decode. No save file writes are performed.',
       'Schema field semantics are reported only where directly decoded from the PARC schema.',
-      'Fixed-width primitive and enum field values are decoded when their schema type is directly supported; custom and nested values remain diagnostic-only.'
+      'Fixed-width primitive, enum, and allowlisted scalar-alias storage values are decoded when their byte representation is directly supported; alias values are unsigned storage-level interpretations and do not claim semantic type resolution; custom and nested values remain diagnostic-only.'
     ]
   };
 }
@@ -464,12 +464,37 @@ function readDecodedRaw(filePath) {
   return lz4BlockDecompress(plaintext, u32le(fileData, 0x12));
 }
 
+const SAFE_SCALAR_ALIAS_DECODERS = new Map([
+  ['tstat', { kind: 'uint64-alias', size: 8, read: 'uint64' }],
+  ['tlevel', { kind: 'uint32-alias', size: 4, read: 'uint32' }],
+  ['texperience', { kind: 'uint64-alias', size: 8, read: 'uint64' }],
+  ['tskillpoint', { kind: 'uint16-alias', size: 2, read: 'uint16' }],
+  ['tstackcount', { kind: 'uint64-alias', size: 8, read: 'uint64' }],
+  ['tenchantlevel', { kind: 'uint16-alias', size: 2, read: 'uint16' }],
+  ['tendurance', { kind: 'uint16-alias', size: 2, read: 'uint16' }],
+  ['tsocketslotno', { kind: 'uint8-alias', size: 1, read: 'uint8' }],
+  ['titemslotno', { kind: 'uint16-alias', size: 2, read: 'uint16' }],
+  ['tequipslotno', { kind: 'uint16-alias', size: 2, read: 'uint16' }]
+]);
+
+function decodeSafeScalarAlias(raw, decoder, startOffset) {
+  if (decoder.read === 'uint8') return { kind: decoder.kind, value: raw.readUInt8(startOffset) };
+  if (decoder.read === 'uint16') return { kind: decoder.kind, value: raw.readUInt16LE(startOffset) };
+  if (decoder.read === 'uint32') return { kind: decoder.kind, value: raw.readUInt32LE(startOffset) };
+  if (decoder.read === 'uint64') return { kind: decoder.kind, value: raw.readBigUInt64LE(startOffset).toString() };
+  return null;
+}
+
 function decodeSafeFixedFieldValue(raw, field, startOffset, endOffset) {
   if (startOffset === null || endOffset === null || endOffset <= startOffset) return null;
   const size = endOffset - startOffset;
   const typeName = String(field.typeName || '').toLowerCase();
+  const aliasDecoder = SAFE_SCALAR_ALIAS_DECODERS.get(typeName);
 
   try {
+    if (aliasDecoder && size === aliasDecoder.size) {
+      return decodeSafeScalarAlias(raw, aliasDecoder, startOffset);
+    }
     if (typeName === 'bool' && size >= 1) {
       return { kind: 'bool', value: raw[startOffset] !== 0 };
     }
@@ -745,7 +770,7 @@ function correlateParcObjects(first, second, firstRaw, secondRaw, options = {}) 
     changedObjectsTruncated: maxChangedObjects !== null && changedObjects.length > maxChangedObjects,
     topChangedClasses,
     fieldMappingMode: 'FIXED_PREFIX_SCHEMA_SAFE_VALUES',
-    note: 'Read-only structural correlation. Objects match by class/sentinel tuple with ordinal, then entry-index+class fallback. Field changes cover fixed-width fields decoded from the object prefix. Safe primitive and enum values are surfaced directly; custom/unsupported field types fall back to raw hex. Dynamic/nested regions remain unmapped.'
+    note: 'Read-only structural correlation. Objects match by class/sentinel tuple with ordinal, then entry-index+class fallback. Field changes cover fixed-width fields decoded from the object prefix. Safe primitive, enum, and allowlisted scalar-alias storage values are surfaced directly; aliases are unsigned storage-level interpretations rather than semantic type resolution; custom/unsupported field types fall back to raw hex. Dynamic/nested regions remain unmapped.'
   };
 }
 
