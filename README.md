@@ -38,6 +38,7 @@ GitHub automatic updates require the release assets to be reachable by the packa
 - SQLite persistence
 - Checklist persistence
 - Save metadata + SHA-256 baseline
+- Read-only PARC object correlation with safe primitive/enum field-value previews
 - Baseline history
 - Local logging
 - Windows NSIS + portable packaging
