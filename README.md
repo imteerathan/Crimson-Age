@@ -58,6 +58,8 @@ D1.8 extends value previews with an allowlisted set of scalar aliases (for examp
 
 D1.9 adds a local search/filter field to the Save Object Correlation view so changed classes, fields, types, and decoded values can be located without manually scanning the result list.
 
+D1.10 clears previously rendered save comparisons and correlation search state whenever a new baseline is captured. This prevents an older comparison from being mistaken for the newly selected baseline pair.
+
 The project uses **one version number only**, stored in `package.json`.
 
 - Normal releases use SemVer: `X.Y.Z`.
