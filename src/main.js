@@ -285,7 +285,8 @@ ipcMain.handle('save:listBaselines', () => {
   return db.prepare(`
     SELECT id, label, file_name AS fileName, file_path AS filePath,
            file_size AS fileSize, last_modified AS lastModified,
-           sha256, created_at AS createdAt
+           sha256, created_at AS createdAt,
+           snapshot_path AS snapshotPath
     FROM save_baseline
     ORDER BY id DESC
   `).all();
