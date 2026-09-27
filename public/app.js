@@ -162,7 +162,8 @@ async function render() {
         <div class="item">D1.4 · Save Baseline Diff <b>VERIFIED</b></div></div>
         <div class="item">D1.3 · Binary Structure Analyzer <b>VERIFIED</b></div>
         <div class="item">D1.5 · Save Container Decoder <b>VERIFIED</b></div>
-        <div class="item">D1.6 · Save Object Correlation <b>IN PROGRESS</b></div>
+        <div class="item">D1.6 · Save Object Correlation <b>VERIFIED</b></div>
+        <div class="item">D1.7 · Safe Primitive Field Values <b>IN PROGRESS</b></div>
         <div class="item">D2 · Crimson Age Core <b>PLANNED</b></div>
         <div class="item">D3 · Local Database <b>PLANNED</b></div>
         <div class="item">D4 · Real Map <b>PLANNED</b></div>
@@ -425,7 +426,7 @@ function renderObjectCorrelation(c) {
   if (!c) return '';
   const objects = c.changedObjects || [];
   const classes = c.topChangedClasses || [];
-  return '<div class="card" style="margin-top:14px"><h3>Save Object Correlation · D1.6</h3>' +
+  return '<div class="card" style="margin-top:14px"><h3>Save Object Correlation · D1.6 / D1.7</h3>' +
     '<div class="kv">' +
     '<div>Matched Objects</div><span>' + (c.matchedObjects ?? 0) + '</span>' +
     '<div>Changed Objects</div><span>' + (c.changedObjectCount ?? 0) + '</span>' +
@@ -444,7 +445,11 @@ function renderObjectCorrelation(c) {
         return '<div class="item">' +
           '<div><b>' + esc(x.className) + '</b><div class="muted">entry ' + x.firstEntryIndex + ' → ' + x.secondEntryIndex +
           ' · bytes=' + x.changedBytes + ' · layout=' + (x.layoutSame ? 'stable' : 'changed') + '</div>' +
-          (fields.length ? '<div class="muted">Fields: ' + fields.map(f => esc(f.name) + ' [' + esc(f.status) + ', ' + f.changedBytes + ' B]').join(' · ') + '</div>' : '') +
+          (fields.length ? '<div class="muted">Fields: ' + fields.map(f => {
+            const hasValues = f.firstValue !== null && f.firstValue !== undefined || f.secondValue !== null && f.secondValue !== undefined;
+            const values = hasValues ? ', ' + esc(String(f.firstValue ?? '—')) + ' → ' + esc(String(f.secondValue ?? '—')) : '';
+            return esc(f.name) + ' [' + esc(f.status) + ', ' + f.changedBytes + ' B' + values + ']';
+          }).join(' · ') + '</div>' : '') +
           '</div></div>';
       }).join('') +
       '</div>' : '<p class="muted">No changed objects detected.</p>') +
