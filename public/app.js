@@ -157,7 +157,8 @@ async function render() {
         <div class="item">D1.2 · Save Baseline <b>VERIFIED</b>
         <div class="item">D1.4 · Save Baseline Diff <b>VERIFIED</b></div></div>
         <div class="item">D1.3 · Binary Structure Analyzer <b>VERIFIED</b></div>
-        <div class="item">D1.5 · Save Container Decoder <b>IN PROGRESS</b></div>
+        <div class="item">D1.5 · Save Container Decoder <b>VERIFIED</b></div>
+        <div class="item">D1.6 · Save Object Correlation <b>IN PROGRESS</b></div>
         <div class="item">D2 · Crimson Age Core <b>PLANNED</b></div>
         <div class="item">D3 · Local Database <b>PLANNED</b></div>
         <div class="item">D4 · Real Map <b>PLANNED</b></div>
@@ -416,6 +417,35 @@ function renderContainerAnalysis(a) {
     '</div>';
 }
 
+function renderObjectCorrelation(c) {
+  if (!c) return '';
+  const objects = c.changedObjects || [];
+  const classes = c.topChangedClasses || [];
+  return '<div class="card" style="margin-top:14px"><h3>Save Object Correlation · D1.6</h3>' +
+    '<div class="kv">' +
+    '<div>Matched Objects</div><span>' + (c.matchedObjects ?? 0) + '</span>' +
+    '<div>Changed Objects</div><span>' + (c.changedObjectCount ?? 0) + '</span>' +
+    '<div>Added Objects</div><span>' + (c.addedObjects ?? 0) + '</span>' +
+    '<div>Removed Objects</div><span>' + (c.removedObjects ?? 0) + '</span>' +
+    '<div>Structural Changes</div><span>' + (c.structurallyChangedObjects ?? 0) + '</span>' +
+    '<div>Field Mapping</div><span>' + esc(c.fieldMappingMode || '—') + '</span>' +
+    '</div>' +
+    (classes.length ? '<h4>Changed classes</h4><div class="list">' +
+      classes.slice(0,20).map(x => '<div class="item"><b>' + esc(x.className) + '</b><span>objects=' + x.changedObjects + ' · bytes=' + x.changedBytes + '</span></div>').join('') +
+      '</div>' : '<p class="muted">No changed classes.</p>') +
+    (objects.length ? '<h4>Changed objects</h4><div class="list">' +
+      objects.slice(0,50).map(x => {
+        const fields = x.changedFixedFields || [];
+        return '<div class="item">' +
+          '<div><b>' + esc(x.className) + '</b><div class="muted">entry ' + x.firstEntryIndex + ' → ' + x.secondEntryIndex +
+          ' · bytes=' + x.changedBytes + ' · layout=' + (x.layoutSame ? 'stable' : 'changed') + '</div>' +
+          (fields.length ? '<div class="muted">Fields: ' + fields.map(f => esc(f.name) + ' [' + esc(f.status) + ', ' + f.changedBytes + ' B]').join(' · ') + '</div>' : '') +
+          '</div></div>';
+      }).join('') +
+      '</div>' : '<p class="muted">No changed objects detected.</p>') +
+    '<p class="muted">' + esc(c.note || '') + '</p></div>';
+}
+
 function renderRawDiff(d) {
   if (d.exportError) return '<div class="card" style="margin-top:14px"><h3>Decoded PARC Diff · D1.5</h3><p class="muted">' + esc(d.exportError) + '</p></div>';
   const chunks = d.changedChunks || [];
@@ -432,7 +462,7 @@ function renderRawDiff(d) {
     '<div>Last Changed Offset</div><span>' + (d.lastChangedOffset === null ? 'NONE' : '0x' + d.lastChangedOffset.toString(16)) + '</span>' +
     '</div><p class="muted">Returned regions: ' + d.changedChunksReturned + (d.changedChunksTruncated ? ' (truncated)' : '') + '</p>' +
     (chunks.length ? '<div class="list">' + chunks.slice(0,200).map(x => '<div class="item"><code>0x' + x.offset.toString(16).padStart(8,'0') + '</code><span>length=' + x.length + (x.sizeChanged ? ' · size change' : '') + '</span></div>').join('') + '</div>' : '<p class="muted">No raw byte differences found.</p>') +
-    '</div>';
+    '</div>' + renderObjectCorrelation(d.objectCorrelation);
 }
 
 function renderDiff(d) {
