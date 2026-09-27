@@ -4,6 +4,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const { autoUpdater } = require('electron-updater');
+const VERSION_INFO = require('../versioning.json');
 
 let win;
 let db;
@@ -13,7 +14,8 @@ let updaterState = {
   message: 'Updater ready',
   version: app.getVersion(),
   downloaded: false,
-  error: null
+  error: null,
+  publicVersion: VERSION_INFO.publicVersion
 };
 
 function dataDir() {
@@ -25,7 +27,7 @@ function baselineSnapshotDir() {
 }
 
 function emitUpdaterState(extra = {}) {
-  updaterState = { ...updaterState, ...extra, version: app.getVersion() };
+  updaterState = { ...updaterState, ...extra, version: app.getVersion(), publicVersion: VERSION_INFO.publicVersion };
   if (win && !win.isDestroyed()) win.webContents.send('updater:state', updaterState);
   console.log('Updater state', updaterState);
 }
@@ -881,14 +883,16 @@ function configureUpdater() {
       status: 'UPDATE_AVAILABLE',
       message: `Version ${info.version} is available.`,
       availableVersion: info.version,
+      availablePublicVersion: info.releaseName?.match(/v(\d+(?:\.\d+){2,3})/i)?.[1] || null,
       releaseName: info.releaseName || ''
     })
   );
   autoUpdater.on('update-not-available', info =>
     emitUpdaterState({
       status: 'UP_TO_DATE',
-      message: `Already on the latest version (${info.version}).`,
+      message: `Already on the latest updater build (${info.version}).`,
       availableVersion: null,
+      availablePublicVersion: null,
       downloaded: false,
       error: null
     })
@@ -938,7 +942,11 @@ ipcMain.handle('db:info', () => {
     records: db.prepare('SELECT COUNT(*) n FROM ca_record').get().n,
     baselines: db.prepare('SELECT COUNT(*) n FROM save_baseline').get().n,
     logsPath: app.getPath('logs'),
-    version: app.getVersion()
+    version: app.getVersion(),
+    publicVersion: VERSION_INFO.publicVersion,
+    versionType: VERSION_INFO.releaseType,
+    versionBase: VERSION_INFO.baseVersion || null,
+    hotfixNumber: VERSION_INFO.hotfixNumber ?? null
   };
 });
 
