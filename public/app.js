@@ -426,7 +426,7 @@ function renderObjectCorrelation(c) {
   if (!c) return '';
   const objects = c.changedObjects || [];
   const classes = c.topChangedClasses || [];
-  return '<div class="card" style="margin-top:14px"><h3>Save Object Correlation · D1.6 / D1.7</h3>' +
+  return '<div class="card" style="margin-top:14px"><h3>Save Object Correlation · D1.6 / D1.8</h3>' +
     '<div class="kv">' +
     '<div>Matched Objects</div><span>' + (c.matchedObjects ?? 0) + '</span>' +
     '<div>Changed Objects</div><span>' + (c.changedObjectCount ?? 0) + '</span>' +
