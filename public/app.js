@@ -187,12 +187,13 @@ async function render() {
     const baselines = await window.crimsonAge.listBaselines();
     const analysisCard = lastAnalysis ? renderAnalysis(lastAnalysis) : '';
     const diffCard = lastDiff ? renderDiff(lastDiff) : '';
+    const snapshotBaselines = baselines.filter(b => b.snapshotPath);
     const history = baselines.length
       ? `<div class="card" style="margin-top:14px"><h3>Baseline History</h3>${baselines.map((b, i) => `
           <div class="item">
             <div>
               <b>${esc(b.label || `Baseline #${b.id}`)}</b>
-              <div class="muted">${esc(b.createdAt)} · ${fmtBytes(b.fileSize)}</div>
+              <div class="muted">${esc(b.createdAt)} · ${fmtBytes(b.fileSize)} · ${b.snapshotPath ? 'IMMUTABLE SNAPSHOT' : 'LEGACY / NO SNAPSHOT'}</div>
               <code>${esc(b.sha256)}</code>
             </div>
             <span>${i === 0 ? 'LATEST' : ''}</span>
@@ -205,7 +206,7 @@ async function render() {
       <button id="pick">Select save file</button>
       ${lastBaseline ? '<button id="analyze" style="margin-left:8px">Analyze Binary Structure</button>' : ''}
       <div id="picked" class="card" style="margin-top:14px">${lastBaseline ? renderBaseline(lastBaseline) : 'No new file selected in this session.'}</div>
-      ${baselines.length >= 2 ? '<button id="compareLatest" style="margin-left:8px">Compare Latest Two Baselines</button>' : ''}
+      ${snapshotBaselines.length >= 2 ? '<button id="compareLatest" style="margin-left:8px">Compare Latest Two Baselines</button>' : ''}
       ${analysisCard}${diffCard}${history}`;
   } else {
     html = `
@@ -267,8 +268,8 @@ async function render() {
       compareLatest.disabled = true;
       compareLatest.textContent = 'Comparing…';
       try {
-        if (baselines.length < 2) throw new Error('At least two baselines are required.');
-        lastDiff = await window.crimsonAge.compareSaves(baselines[1].filePath, baselines[0].filePath);
+        if (snapshotBaselines.length < 2) throw new Error('At least two immutable baseline snapshots are required.');
+        lastDiff = await window.crimsonAge.compareSaves(snapshotBaselines[1].snapshotPath, snapshotBaselines[0].snapshotPath);
         console.log('Save baseline diff complete', { changed: lastDiff.changed, changedBytes: lastDiff.changedBytes, changedChunks: lastDiff.changedChunkCount });
         await render();
       } catch (err) {
