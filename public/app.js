@@ -428,6 +428,7 @@ function renderObjectCorrelation(c) {
     '<div>Added Objects</div><span>' + (c.addedObjects ?? 0) + '</span>' +
     '<div>Removed Objects</div><span>' + (c.removedObjects ?? 0) + '</span>' +
     '<div>Structural Changes</div><span>' + (c.structurallyChangedObjects ?? 0) + '</span>' +
+    '<div>Offset-only shifts</div><span>' + (c.offsetShiftOnlyObjects ?? 0) + '</span>' +
     '<div>Field Mapping</div><span>' + esc(c.fieldMappingMode || '—') + '</span>' +
     '</div>' +
     (classes.length ? '<h4>Changed classes</h4><div class="list">' +
