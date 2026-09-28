@@ -63,6 +63,7 @@ function renderHost(state) {
     : 'Standalone fallback';
   $('#dashCaps').textContent = state.negotiated?.length ? state.negotiated.join(', ') : 'Local capabilities only';
   $('#connectionState').textContent = state.status;
+  window.horizon.getLoaderStatus().then(loader => { $('#loaderState').textContent = loader.loaded ? 'LOADED' : loader.reason; }).catch(() => { $('#loaderState').textContent = 'UNAVAILABLE'; });
   $('#connectionReason').textContent = state.reason || 'None';
   $('#connectionNegotiated').textContent = state.negotiated?.join(', ') || 'None';
   $('#connectionFallback').textContent = state.fallback?.join(', ') || 'None';
