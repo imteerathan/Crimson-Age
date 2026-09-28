@@ -13,7 +13,7 @@ const { DiagnosticsService } = require('../services/diagnostics/service');
 const { MigrationService } = require('../services/migration/service');
 const { OverlayManager } = require('../services/overlay/manager');
 const { OverlayRuntimeGuard } = require('../services/overlay/runtime-guard');
-const { createWindowsGameWindowResolver, createWindowsForegroundUiResolver, WindowDisplayTracker, GameUiHeuristicDetector } = require('../services/overlay/window-display');
+const { createWindowsGameWindowResolver, createWindowsForegroundResolver, createWindowsForegroundUiResolver, WindowDisplayTracker, GameUiHeuristicDetector } = require('../services/overlay/window-display');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -76,9 +76,16 @@ function createOverlay() {
   });
 
   if (process.platform === 'win32') {
-    const resolver = createWindowsGameWindowResolver({
+    const processResolver = createWindowsGameWindowResolver({
       processNames: ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping']
     });
+    const foregroundResolver = createWindowsForegroundResolver();
+    const resolver = callback => {
+      processResolver((error, windowInfo) => {
+        if (!error && windowInfo) return callback(null, windowInfo);
+        foregroundResolver((foregroundError, foregroundWindow) => callback(foregroundError, foregroundWindow));
+      });
+    };
     displayTracker = new WindowDisplayTracker({
       resolveWindow: resolver,
       screenApi: require('electron').screen,
