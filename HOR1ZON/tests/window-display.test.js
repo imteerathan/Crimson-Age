@@ -21,7 +21,10 @@ test('display tracker moves target only when game window changes display', () =>
 
   const tracker = new WindowDisplayTracker({
     resolveWindow: cb => cb(null, windows.shift()),
-    screenApi: { getDisplayMatching: bounds => bounds.x >= 1920 ? display2 : display1 },
+    screenApi: {
+      getDisplayNearestPoint: point => point.x >= 1920 ? display2 : display1,
+      getDisplayMatching: bounds => bounds.x >= 1920 ? display2 : display1
+    },
     onDisplay: display => { calls += 1; callback = display.id; }
   });
 
