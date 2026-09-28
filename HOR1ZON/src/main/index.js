@@ -7,14 +7,24 @@ const { EventBus } = require('../core/events/event-bus');
 const { validateManifest } = require('../core/contracts/manifest');
 const { AtlasConnection } = require('../adapters/atlas/connection');
 const { createLoader } = require('../adapters/atlas/loader');
+const { ExtensionStateStore } = require('../services/storage/extension-state');
+const { DiagnosticsService } = require('../services/diagnostics/service');
+const { MigrationService } = require('../services/migration/service');
 const manifest = require('../../manifest.json');
 
 let win;
 let settings;
 let updater;
+let extensionState;
+let diagnostics;
+let migrations;
 const events = new EventBus();
 const atlas = new AtlasConnection(manifest);
 const atlasLoader = createLoader({ manifest, onEvent: event => events.emit(event) });
+
+function recordDiagnostic(event, payload) {
+  if (diagnostics) diagnostics.record(event, payload);
+}
 
 function sendUpdaterState(state) {
   events.emit({
@@ -24,6 +34,8 @@ function sendUpdaterState(state) {
     source: 'horizon.updater',
     payload: state
   });
+  recordDiagnostic('horizon.updater.state', state);
+  if (extensionState) extensionState.setUpdaterState(state);
   if (win && !win.isDestroyed()) win.webContents.send('horizon:updater:state', state);
 }
 
@@ -50,9 +62,13 @@ function registerIpc() {
   ipcMain.handle('horizon:settings:reset', () => settings.reset());
 
   ipcMain.handle('horizon:host:status', () => atlas.getState());
+  ipcMain.handle('horizon:state:get', () => extensionState.get());
+  ipcMain.handle('horizon:diagnostics:recent', (_event, limit = 50) => diagnostics.listRecent(limit));
   ipcMain.handle('horizon:loader:status', () => atlasLoader.getState());
   ipcMain.handle('horizon:host:simulate-handshake', (_event, hostInfo, hostCapabilities) => {
     const state = atlas.evaluate(hostInfo, hostCapabilities);
+    extensionState.setHostStatus(state);
+    recordDiagnostic('horizon.host.state', state);
     if (state.connected) {
       atlasLoader.load({
         info: { name: hostInfo.name, version: hostInfo.version, protocol: hostInfo.protocol },
@@ -77,6 +93,17 @@ app.whenReady().then(() => {
   settings = new SettingsStore(path.join(dataDir, 'horizon-settings.json'));
   settings.load();
 
+  extensionState = new ExtensionStateStore(path.join(dataDir, 'extension-state.json'));
+  const savedState = extensionState.load();
+  migrations = new MigrationService({ currentVersion: 1, migrations: [{ version: 1, up: () => {} }] });
+  const migrationResult = migrations.run(savedState.migrationVersion);
+  extensionState.setMigrationVersion(migrationResult.version);
+  diagnostics = new DiagnosticsService(path.join(dataDir, 'diagnostics.jsonl'), {
+    retentionDays: settings.get().privacy.diagnosticRetentionDays
+  });
+  diagnostics.prune();
+  extensionState.markStarted(new Date().toISOString());
+  recordDiagnostic('horizon.lifecycle.boot', { version: app.getVersion(), migrationVersion: migrationResult.version });
   const feedUrl = process.env.HORIZON_UPDATE_FEED_URL || '';
   if (app.isPackaged && feedUrl) {
     autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
@@ -106,6 +133,12 @@ app.whenReady().then(() => {
     timestamp: new Date().toISOString(),
     source: 'horizon'
   });
+});
+
+app.on('before-quit', () => {
+  const timestamp = new Date().toISOString();
+  if (extensionState) extensionState.markShutdown(timestamp);
+  recordDiagnostic('horizon.lifecycle.shutdown', { timestamp });
 });
 
 app.on('window-all-closed', () => {
