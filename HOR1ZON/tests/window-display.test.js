@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { shouldTrackWindow, WindowDisplayTracker, GameUiHeuristicDetector } = require('../src/services/overlay/window-display');
+const { shouldTrackWindow, WindowDisplayTracker, GameInputUiDetector } = require('../src/services/overlay/window-display');
 
 test('window target filter ignores Horizon and tiny windows', () => {
   assert.equal(shouldTrackWindow({ pid: 10, processName: 'Crimson-Atlas-Horizon', title: 'Horizon', bounds: { width: 1920, height: 1080 } }, { ownProcessNames: ['Crimson-Atlas-Horizon'] }), false);
@@ -67,23 +67,42 @@ test('display tracker can restrict tracking to Crimson Desert process', () => {
 });
 
 
-test('game UI heuristic restores when cursor capture returns', () => {
-  const samples = [
-    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: false },
-    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: false },
-    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: true },
-    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: true },
-    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: true },
-    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: true },
-  ];
-  const states = [];
-  const detector = new GameUiHeuristicDetector({
-    resolveUi: cb => cb(null, samples.shift()),
-    onState: state => states.push(state),
-    intervalMs: 1000,
-    hideSamples: 2,
-    restoreSamples: 4
+
+test('display tracker reports game presence when the game opens and closes', () => {
+  const game = { pid: 200, processName: 'CrimsonDesert', title: 'Crimson Desert', bounds: { x: 0, y: 0, width: 1600, height: 900 } };
+  const sequence = [game, game, null, null, null];
+  const presence = [];
+  const tracker = new WindowDisplayTracker({
+    resolveWindow: cb => cb(null, sequence.shift() || null),
+    screenApi: { getDisplayNearestPoint: () => ({ id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } }) },
+    trackedProcessNames: ['CrimsonDesert'],
+    onPresence: value => presence.push(value),
+    missingSamples: 3
   });
-  for (let i = 0; i < 6; i++) detector.poll();
-  assert.deepEqual(states, ['GAME_UI_HEURISTIC', 'GAMEPLAY']);
+  tracker.poll();
+  tracker.poll();
+  tracker.poll();
+  tracker.poll();
+  tracker.poll();
+  assert.deepEqual(presence, [true, false]);
+  assert.equal(tracker.getState().present, false);
+});
+
+test('game input detector emits one edge per ESC and controller menu/view press', () => {
+  const samples = [
+    { processName: 'CrimsonDesert', pressed: [] },
+    { processName: 'CrimsonDesert', pressed: ['ESC'] },
+    { processName: 'CrimsonDesert', pressed: ['ESC'] },
+    { processName: 'CrimsonDesert', pressed: [] },
+    { processName: 'CrimsonDesert', pressed: ['GAMEPAD_MENU'] },
+    { processName: 'CrimsonDesert', pressed: ['GAMEPAD_MENU'] },
+    { processName: 'CrimsonDesert', pressed: ['GAMEPAD_VIEW'] }
+  ];
+  const events = [];
+  const detector = new GameInputUiDetector({
+    resolveInput: cb => cb(null, samples.shift()),
+    onInput: input => events.push(input)
+  });
+  for (let i = 0; i < 7; i++) detector.poll();
+  assert.deepEqual(events, ['ESC', 'GAMEPAD_MENU', 'GAMEPAD_VIEW']);
 });
