@@ -56,6 +56,14 @@ function readSettingsPatch() {
   };
 }
 
+async function renderRuntimeState() {
+  const state = await window.horizon.getExtensionState();
+  $('#launchCount').textContent = String(state.launchCount);
+  $('#lastStarted').textContent = state.lastStartedAt || '—';
+  const diagnostics = await window.horizon.getRecentDiagnostics(30);
+  $('#diagnostics').textContent = diagnostics.length ? diagnostics.map(x => `${x.timestamp}  ${x.event}`).join('\\n') : 'No diagnostics yet.';
+}
+
 function renderHost(state) {
   $('#hostPill').textContent = state.status;
   $('#dashHost').textContent = state.connected
@@ -92,6 +100,7 @@ async function boot() {
   fillSettings(settings);
   renderHost(host);
   renderUpdater(updater);
+  await renderRuntimeState();
 
   $('#saveSettings').onclick = async () => {
     try {
@@ -121,6 +130,7 @@ async function boot() {
   $('#refreshHost').onclick = async () => {
     host = await window.horizon.getHostStatus();
     renderHost(host);
+    await renderRuntimeState();
   };
 
   window.horizon.onUpdaterState(next => renderUpdater(next));
