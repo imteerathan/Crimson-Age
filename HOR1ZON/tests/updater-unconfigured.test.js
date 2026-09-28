@@ -17,7 +17,8 @@ test('packaged updater with no feed stays unconfigured and never calls updater A
   await service.check();
   assert.equal(service.getState().state, 'UNCONFIGURED');
   assert.equal(checks, 0);
-  await service.download();
+  const downloadState = await service.download();
+  assert.equal(downloadState.state, 'UNCONFIGURED');
   assert.equal(downloads, 0);
   assert.equal(service.install(), false);
   assert.equal(installs, 0);
