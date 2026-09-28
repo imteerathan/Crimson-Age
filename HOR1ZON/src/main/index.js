@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, desktopCapturer, globalShortcut } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const { SettingsStore } = require('../services/settings/store');
@@ -14,6 +14,9 @@ const { MigrationService } = require('../services/migration/service');
 const { OverlayManager } = require('../services/overlay/manager');
 const { OverlayRuntimeGuard } = require('../services/overlay/runtime-guard');
 const { createWindowsGameWindowResolver, createWindowsForegroundResolver, createWindowsGlobalInputResolver, WindowDisplayTracker, GameInputUiDetector } = require('../services/overlay/window-display');
+const { GameUiStateEngine } = require('../services/overlay/game-ui-state');
+const { VisualGameUiDetector } = require('../services/overlay/visual-game-ui-detector');
+const { WindowsGameFrameSource, GameUiMonitor } = require('../services/overlay/game-frame-source');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -29,6 +32,7 @@ let overlay;
 let runtimeGuard;
 let displayTracker;
 let gameInputDetector;
+let gameUiMonitor;
 
 function recordDiagnostic(event, payload) {
   if (diagnostics) diagnostics.record(event, payload);
@@ -86,19 +90,49 @@ function createOverlay() {
         foregroundResolver((foregroundError, foregroundWindow) => callback(foregroundError, foregroundWindow));
       });
     };
+    const uiStateEngine = new GameUiStateEngine({
+      onState: state => {
+        const reason = 'ui-state-' + String(state.source || 'unknown').toLowerCase() + '-' + String(state.reason || 'unknown').toLowerCase();
+        runtimeGuard.setState(state.state, {
+          reason,
+          source: state.source,
+          confidence: state.confidence
+        });
+        if (overlay) overlay.setData({
+          runtimeState: state.state,
+          runtimeReason: state.reason || null,
+          runtimeSource: state.source || null,
+          runtimeConfidence: state.confidence
+        });
+        recordDiagnostic('horizon.overlay.game-ui-state', state);
+      }
+    });
+    const visualUiDetector = new VisualGameUiDetector();
+    gameUiMonitor = new GameUiMonitor({
+      frameSource: new WindowsGameFrameSource({ desktopCapturer }),
+      visualDetector: visualUiDetector,
+      stateEngine: uiStateEngine,
+      intervalMs: 333,
+      onState: () => {},
+      onObservation: () => {}
+    });
+
     displayTracker = new WindowDisplayTracker({
       resolveWindow: resolver,
       onPresence: (present, windowInfo) => {
         if (present) {
           runtimeGuard.setState('GAMEPLAY', { reason: 'game-session-started', window: windowInfo?.title || null });
+          gameUiMonitor.setTargetWindow(windowInfo);
+          gameUiMonitor.start();
           overlay.show('game-session-started');
         } else {
           gameInputDetector?.reset();
+          gameUiMonitor.stop('game-session-ended');
           overlay.destroy();
           recordDiagnostic('horizon.overlay.game-session-closed', { reason: 'game-process-ended' });
         }
       },
-      screenApi: require('electron').screen,
+      screenApi: screen,
       ownProcessNames: [
         'Crimson-Atlas-Horizon',
         'Crimson Atlas Horizon',
@@ -110,6 +144,7 @@ function createOverlay() {
         'CrimsonDesert-Win64-Shipping'
       ],
       onDisplay: (display, windowInfo) => {
+        gameUiMonitor.setTargetWindow(windowInfo);
         overlay.setTargetDisplay(display);
         overlay.setData({
           targetDisplayId: String(display.id),
@@ -135,10 +170,12 @@ function createOverlay() {
       resolveInput: createWindowsGlobalInputResolver(),
       trackedProcessNames: ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping'],
       onInput: (input, info) => {
-        if (settings.get().overlay.autoHideDuringGameUi === false) return;
-        const current = runtimeGuard.getState().state;
-        runtimeGuard.setInputUi(current !== 'INPUT_UI', 'input-' + input.toLowerCase());
-        recordDiagnostic('horizon.overlay.input-ui', { input, title: info?.title || null, state: runtimeGuard.getState().state });
+        gameUiMonitor?.noteInputHint(input, info);
+        recordDiagnostic('horizon.overlay.input-hint', {
+          input,
+          title: info?.title || null,
+          processName: info?.processName || null
+        });
       }
     });
     gameInputDetector.start();
@@ -226,6 +263,7 @@ function registerIpc() {
   ipcMain.handle('horizon:overlay:edit-toggle', () => overlay.setEditMode(!overlay.getState().editMode));
   ipcMain.handle('horizon:overlay:set-position', (_event, position) => overlay.setPosition(position));
   ipcMain.handle('horizon:overlay:runtime-state', (_event, state, reason) => runtimeGuard.setState(state, { reason }));
+  ipcMain.handle('horizon:overlay:detection', () => gameUiMonitor?.getState() || { running: false, targetWindow: null, telemetry: null, detector: null, engine: { state: 'UNKNOWN', source: 'none', confidence: 0 }, lastError: null });
   ipcMain.handle('horizon:overlay:notify', (_event, message, duration = 3000) => overlay.notify(message, duration));
 }
 
@@ -289,11 +327,11 @@ app.whenReady().then(() => {
   });
 });
 
-const { globalShortcut } = require('electron');
 
 app.on('before-quit', () => {
   if (displayTracker) displayTracker.stop();
   if (gameInputDetector) gameInputDetector.stop();
+  if (gameUiMonitor) gameUiMonitor.stop('app-shutdown');
   if (overlay) overlay.destroy();
   globalShortcut.unregister('CommandOrControl+Shift+H');
   const timestamp = new Date().toISOString();
