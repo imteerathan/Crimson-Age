@@ -13,6 +13,7 @@ const { DiagnosticsService } = require('../services/diagnostics/service');
 const { MigrationService } = require('../services/migration/service');
 const { OverlayManager } = require('../services/overlay/manager');
 const { OverlayRuntimeGuard } = require('../services/overlay/runtime-guard');
+const { createWindowsForegroundResolver, WindowDisplayTracker } = require('../services/overlay/window-display');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -26,6 +27,7 @@ const atlas = new AtlasConnection(manifest);
 const atlasLoader = createLoader({ manifest, onEvent: event => events.emit(event) });
 let overlay;
 let runtimeGuard;
+let displayTracker;
 
 function recordDiagnostic(event, payload) {
   if (diagnostics) diagnostics.record(event, payload);
@@ -71,6 +73,39 @@ function createOverlay() {
     overlay,
     getSettings: () => settings.get()
   });
+
+  if (process.platform === 'win32') {
+    const resolver = createWindowsForegroundResolver();
+    displayTracker = new WindowDisplayTracker({
+      resolveWindow: resolver,
+      screenApi: require('electron').screen,
+      ownProcessNames: [
+        'Crimson-Atlas-Horizon',
+        'Crimson Atlas Horizon',
+        'electron'
+      ],
+      onDisplay: (display, windowInfo) => {
+        overlay.setTargetDisplay(display);
+        overlay.setData({
+          targetDisplayId: String(display.id),
+          targetWindow: {
+            pid: windowInfo.pid,
+            processName: windowInfo.processName,
+            title: windowInfo.title
+          }
+        });
+        recordDiagnostic('horizon.overlay.target-display', {
+          displayId: display.id,
+          window: {
+            pid: windowInfo.pid,
+            processName: windowInfo.processName,
+            title: windowInfo.title
+          }
+        });
+      }
+    });
+    displayTracker.start();
+  }
 }
   
 function syncOverlay() {
@@ -223,6 +258,7 @@ app.whenReady().then(() => {
 const { globalShortcut } = require('electron');
 
 app.on('before-quit', () => {
+  if (displayTracker) displayTracker.stop();
   if (overlay) overlay.destroy();
   globalShortcut.unregister('CommandOrControl+Shift+H');
   const timestamp = new Date().toISOString();
