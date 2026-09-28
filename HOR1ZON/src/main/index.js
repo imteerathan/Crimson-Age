@@ -5,6 +5,7 @@ const { SettingsStore } = require('../services/settings/store');
 const { UpdaterService } = require('../services/updater/service');
 const { EventBus } = require('../core/events/event-bus');
 const { validateManifest } = require('../core/contracts/manifest');
+const { handshake } = require('../adapters/atlas/handshake');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -44,7 +45,7 @@ function registerIpc() {
   ipcMain.handle('horizon:settings:get', () => settings.get());
   ipcMain.handle('horizon:settings:set', (_event, patch) => settings.set(patch));
   ipcMain.handle('horizon:settings:reset', () => settings.reset());
-  ipcMain.handle('horizon:host:status', () => ({ mode: 'STANDALONE_FALLBACK', connected: false }));
+  ipcMain.handle('horizon:host:status', () => handshake({ manifest }));
   ipcMain.handle('horizon:updater:get', () => updater.getState());
   ipcMain.handle('horizon:updater:check', () => updater.check());
   ipcMain.handle('horizon:updater:download', () => updater.download());
