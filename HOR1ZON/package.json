@@ -51,7 +51,6 @@
       "artifactName": "Crimson-Atlas-Horizon-Setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    },
-    "publish": null
+    }
   }
 }
