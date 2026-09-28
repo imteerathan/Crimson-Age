@@ -11,6 +11,7 @@ const { createLoader } = require('../adapters/atlas/loader');
 const { ExtensionStateStore } = require('../services/storage/extension-state');
 const { DiagnosticsService } = require('../services/diagnostics/service');
 const { MigrationService } = require('../services/migration/service');
+const { OverlayManager } = require('../services/overlay/manager');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -22,6 +23,7 @@ let migrations;
 const events = new EventBus();
 const atlas = new AtlasConnection(manifest);
 const atlasLoader = createLoader({ manifest, onEvent: event => events.emit(event) });
+let overlay;
 
 function recordDiagnostic(event, payload) {
   if (diagnostics) diagnostics.record(event, payload);
@@ -38,6 +40,41 @@ function sendUpdaterState(state) {
   recordDiagnostic('horizon.updater.state', state);
   if (extensionState) extensionState.setUpdaterState(state);
   if (win && !win.isDestroyed()) win.webContents.send('horizon:updater:state', state);
+  if (overlay) overlay.setData({ updaterState: state.state, currentVersion: state.currentVersion || app.getVersion(), version: app.getVersion() });
+}
+
+function createOverlay() {
+  overlay = new OverlayManager({
+    BrowserWindowClass: BrowserWindow,
+    screenApi: require('electron').screen,
+    pathModule: path,
+    overlayHtmlPath: path.join(__dirname, '../overlay/index.html'),
+    onState: state => {
+      recordDiagnostic('horizon.overlay.state', state);
+    }
+  });
+  overlay.configure(settings.get().overlay);
+  overlay.setData({
+    version: app.getVersion(),
+    currentVersion: app.getVersion(),
+    host: 'Standalone',
+    hostState: atlas.getState().status,
+    updaterState: updater ? updater.getState().state : 'IDLE'
+  });
+}
+  
+function syncOverlay() {
+  if (!overlay) return;
+  const hostState = atlas.getState();
+  const updaterState = updater?.getState() || {};
+  overlay.configure(settings.get().overlay);
+  overlay.setData({
+    version: app.getVersion(),
+    currentVersion: updaterState.currentVersion || app.getVersion(),
+    host: hostState.host?.name || 'Standalone',
+    hostState: hostState.status,
+    updaterState: updaterState.state || 'IDLE'
+  });
 }
 
 function createWindow() {
@@ -65,9 +102,18 @@ function registerIpc() {
       const channel = next.updates.channel || manifest.updater.channel || 'stable';
       autoUpdater.setFeedURL({ provider: 'generic', url: resolveFeedUrl(manifest.updater.feedBase, channel) });
     }
+    syncOverlay();
     return next;
   });
-  ipcMain.handle('horizon:settings:reset', () => settings.reset());
+  ipcMain.handle('horizon:settings:reset', () => {
+    const next = settings.reset();
+    if (app.isPackaged) {
+      const channel = next.updates.channel || manifest.updater.channel || 'stable';
+      autoUpdater.setFeedURL({ provider: 'generic', url: resolveFeedUrl(manifest.updater.feedBase, channel) });
+    }
+    syncOverlay();
+    return next;
+  });
 
   ipcMain.handle('horizon:host:status', () => atlas.getState());
   ipcMain.handle('horizon:state:get', () => extensionState.get());
@@ -77,6 +123,7 @@ function registerIpc() {
     const state = atlas.evaluate(hostInfo, hostCapabilities);
     extensionState.setHostStatus(state);
     recordDiagnostic('horizon.host.state', state);
+    if (overlay) syncOverlay();
     if (state.connected) {
       atlasLoader.load({
         info: { name: hostInfo.name, version: hostInfo.version, protocol: hostInfo.protocol },
@@ -92,6 +139,10 @@ function registerIpc() {
   ipcMain.handle('horizon:updater:check', () => updater.check());
   ipcMain.handle('horizon:updater:download', () => updater.download());
   ipcMain.handle('horizon:updater:install', () => updater.install());
+  ipcMain.handle('horizon:overlay:get', () => overlay?.getState() || { visible: false, ...settings.get().overlay });
+  ipcMain.handle('horizon:overlay:show', () => overlay.show('ipc-show'));
+  ipcMain.handle('horizon:overlay:hide', () => overlay.hide('ipc-hide'));
+  ipcMain.handle('horizon:overlay:toggle', () => overlay.toggle('ipc-toggle'));
 }
 
 app.whenReady().then(() => {
@@ -138,9 +189,14 @@ app.whenReady().then(() => {
 
   registerIpc();
   atlas.evaluate(null, []);
+  createOverlay();
   atlasLoader.unload('HOST_NOT_FOUND');
   createWindow();
   sendUpdaterState(updater.getState());
+  syncOverlay();
+  if (globalShortcut.register('CommandOrControl+Shift+H', () => overlay?.toggle('global-shortcut')) === false) {
+    recordDiagnostic('horizon.overlay.shortcut-unavailable', { shortcut: 'CommandOrControl+Shift+H' });
+  }
 
   events.emit({
     event: 'horizon.lifecycle.started',
@@ -150,7 +206,11 @@ app.whenReady().then(() => {
   });
 });
 
+const { globalShortcut } = require('electron');
+
 app.on('before-quit', () => {
+  if (overlay) overlay.destroy();
+  globalShortcut.unregister('CommandOrControl+Shift+H');
   const timestamp = new Date().toISOString();
   if (extensionState) extensionState.markShutdown(timestamp);
   recordDiagnostic('horizon.lifecycle.shutdown', { timestamp });
