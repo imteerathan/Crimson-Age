@@ -7,12 +7,51 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "check": "node --check src/main/index.js && node --check src/preload/index.js && node --check src/core/contracts/manifest.js && node --check src/core/events/event-bus.js && node --check src/services/settings/store.js && node --check src/services/updater/state-machine.js && node --check src/services/updater/service.js && node --check src/adapters/atlas/handshake.js"
+    "check": "node --check src/main/index.js && node --check src/preload/index.js && node --check src/core/contracts/manifest.js && node --check src/core/events/event-bus.js && node --check src/services/settings/schema.js && node --check src/services/settings/store.js && node --check src/services/updater/state-machine.js && node --check src/services/updater/service.js && node --check src/adapters/atlas/handshake.js && node --check src/adapters/atlas/connection.js",
+    "build:dir": "electron-builder --win --x64 --dir --publish never",
+    "build:win": "electron-builder --win --x64 --publish never"
   },
   "devDependencies": {
-    "electron": "^38.8.6"
+    "electron": "^38.8.6",
+    "electron-builder": "^26.0.12"
   },
   "dependencies": {
     "electron-updater": "^6.6.2"
+  },
+  "build": {
+    "appId": "com.crimsonatlas.horizon",
+    "productName": "Crimson Atlas Horizon",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "manifest.json",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Crimson-Atlas-Horizon-${version}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "Crimson-Atlas-Horizon-Setup-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": null
   }
 }
