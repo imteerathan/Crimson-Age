@@ -48,7 +48,7 @@ Horizon must not make the host, game logic, or save file the source of truth for
 - [x] Horizon Settings + self-updater foundation implemented
 - [x] Extension manifest/capability negotiation implemented
 - [x] Atlas bridge adapter contract implemented
-- [ ] Overlay runtime implemented
+- [x] Overlay runtime implemented
 - [x] Migration/upgrade validation foundation implemented
 - [x] Windows NSIS + portable packaging path implemented
 
