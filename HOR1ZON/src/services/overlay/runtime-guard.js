@@ -24,7 +24,7 @@ class OverlayRuntimeGuard {
 
     const settings = this.getSettings().overlay || {};
     const cutsceneHide = settings.autoHideDuringCutscene !== false && state === 'CUTSCENE';
-    const gameUiHide = settings.autoHideDuringGameUi !== false && ['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'DIALOGUE'].includes(state);
+    const gameUiHide = settings.autoHideDuringGameUi !== false && ['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'DIALOGUE', 'GAME_UI_HEURISTIC'].includes(state);
     const shouldHide = cutsceneHide || gameUiHide;
 
     if (shouldHide) {
