@@ -74,7 +74,8 @@ jobs:
           releaseDate: $releaseDate
           "@
           Set-Content -Path dist/latest.yml -Value $latest -Encoding utf8
-          if (gh release view $tag --repo "${{ github.repository }}" *> $null) {
+          $existingTag = gh release list --limit 100 --json tagName --jq ".[] | select(.tagName == '$tag') | .tagName"
+          if ($existingTag -eq $tag) {
             gh release upload $tag "$nsis#Crimson-Atlas-Horizon-Setup-$version.exe" "dist/latest.yml#latest.yml" --clobber --repo "${{ github.repository }}"
           } else {
             gh release create $tag "$nsis#Crimson-Atlas-Horizon-Setup-$version.exe" "dist/latest.yml#latest.yml" --title "Crimson Atlas Horizon v$version" --notes "Horizon Extension $version" --target "${{ github.sha }}" --repo "${{ github.repository }}"
