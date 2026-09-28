@@ -8,7 +8,10 @@ test('Windows distribution is self-contained and updater endpoint remains extern
   assert.equal(packageJson.build.productName, 'Crimson Atlas Horizon');
   assert.deepEqual(packageJson.build.win.target.map(target => target.target), ['nsis']);
   assert.equal(packageJson.build.directories.output, 'dist');
-  assert.equal(packageJson.build.publish, undefined);
+  assert.deepEqual(packageJson.build.publish, [{
+    provider: 'generic',
+    url: 'https://raw.githubusercontent.com/imteerathan/Crimson-Age/hor1zon-foundation/updates/stable/'
+  }]);
   assert.equal(manifest.updater.provider, 'generic');
   assert.equal(manifest.updater.channel, 'stable');
   assert.equal(manifest.updater.feedBase.startsWith('https://'), true);
