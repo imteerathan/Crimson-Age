@@ -13,7 +13,7 @@ const { DiagnosticsService } = require('../services/diagnostics/service');
 const { MigrationService } = require('../services/migration/service');
 const { OverlayManager } = require('../services/overlay/manager');
 const { OverlayRuntimeGuard } = require('../services/overlay/runtime-guard');
-const { createWindowsGameWindowResolver, createWindowsForegroundResolver, createWindowsForegroundUiResolver, WindowDisplayTracker, GameUiHeuristicDetector } = require('../services/overlay/window-display');
+const { createWindowsGameWindowResolver, createWindowsForegroundResolver, createWindowsGlobalInputResolver, WindowDisplayTracker, GameInputUiDetector } = require('../services/overlay/window-display');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -88,6 +88,14 @@ function createOverlay() {
     };
     displayTracker = new WindowDisplayTracker({
       resolveWindow: resolver,
+      onPresence: (present, windowInfo) => {
+        if (present) {
+          runtimeGuard.setState('GAMEPLAY', { reason: 'game-session-started', window: windowInfo?.title || null });
+          overlay.show('game-session-started');
+        } else {
+          overlay.hide('game-closed');
+        }
+      },
       screenApi: require('electron').screen,
       ownProcessNames: [
         'Crimson-Atlas-Horizon',
@@ -121,19 +129,14 @@ function createOverlay() {
     });
     displayTracker.start();
 
-    gameUiDetector = new GameUiHeuristicDetector({
-      resolveUi: createWindowsForegroundUiResolver(),
+    gameUiDetector = new GameInputUiDetector({
+      resolveInput: createWindowsGlobalInputResolver(),
       trackedProcessNames: ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping'],
-      onState: (state, windowInfo) => {
+      onInput: (input, info) => {
+        if (settings.get().overlay.autoHideDuringGameUi === false) return;
         const current = runtimeGuard.getState().state;
-        if (state === 'GAME_UI_HEURISTIC' && ['GAMEPLAY', 'GAME_UI_HEURISTIC'].includes(current)) {
-          runtimeGuard.setState('GAME_UI_HEURISTIC', {
-            reason: 'game-cursor-visible',
-            window: windowInfo?.title || null
-          });
-        } else if (state === 'GAMEPLAY' && current === 'GAME_UI_HEURISTIC') {
-          runtimeGuard.setState('GAMEPLAY', { reason: 'game-cursor-hidden' });
-        }
+        runtimeGuard.setInputUi(current !== 'INPUT_UI', 'input-' + input.toLowerCase());
+        recordDiagnostic('horizon.overlay.input-ui', { input, title: info?.title || null, state: runtimeGuard.getState().state });
       }
     });
     gameUiDetector.start();
