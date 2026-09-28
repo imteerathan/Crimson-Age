@@ -22,6 +22,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: horizon-update-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish:
     runs-on: windows-latest
