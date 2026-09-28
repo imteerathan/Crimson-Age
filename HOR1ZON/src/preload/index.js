@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('horizon', {
   resetSettings: () => ipcRenderer.invoke('horizon:settings:reset'),
   getHostStatus: () => ipcRenderer.invoke('horizon:host:status'),
   getLoaderStatus: () => ipcRenderer.invoke('horizon:loader:status'),
+  getExtensionState: () => ipcRenderer.invoke('horizon:state:get'),
+  getRecentDiagnostics: (limit) => ipcRenderer.invoke('horizon:diagnostics:recent', limit),
   simulateHandshake: (hostInfo, hostCapabilities) => ipcRenderer.invoke('horizon:host:simulate-handshake', hostInfo, hostCapabilities),
   getUpdaterState: () => ipcRenderer.invoke('horizon:updater:get'),
   checkForUpdates: () => ipcRenderer.invoke('horizon:updater:check'),
