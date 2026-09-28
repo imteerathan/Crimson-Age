@@ -1,7 +1,6 @@
 const ALLOWED_MODES = new Set(['FULL', 'COMPACT', 'FOCUS']);
 const ALLOWED_LANGUAGES = new Set(['auto', 'th', 'en']);
 const ALLOWED_HOST_MODES = new Set(['AUTO', 'ATLAS', 'STANDALONE']);
-const ALLOWED_CHANNELS = new Set(['stable', 'beta']);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -32,7 +31,6 @@ function validateSettings(settings) {
   assert(typeof settings.integration.reconnect === 'boolean', 'integration.reconnect must be boolean');
 
   assert(settings.updates && typeof settings.updates === 'object', 'updates settings are required');
-  assert(ALLOWED_CHANNELS.has(settings.updates.channel), 'updates.channel is invalid');
   assert(typeof settings.updates.checkOnLaunch === 'boolean', 'updates.checkOnLaunch must be boolean');
 
   assert(settings.privacy && typeof settings.privacy === 'object', 'privacy settings are required');
