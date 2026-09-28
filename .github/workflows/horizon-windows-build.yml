@@ -46,9 +46,7 @@ jobs:
         run: |
           $version = node -p "require('./package.json').version"
           $nsis = "dist/Crimson-Atlas-Horizon-Setup-$version.exe"
-          $portable = "dist/Crimson-Atlas-Horizon-$version.exe"
           if (!(Test-Path $nsis)) { throw "Missing NSIS artifact: $nsis" }
-          if (!(Test-Path $portable)) { throw "Missing portable artifact: $portable" }
           Get-ChildItem dist | Select-Object Name,Length
 
       - name: Read package version
@@ -64,10 +62,9 @@ jobs:
             HOR1ZON/dist/Crimson-Atlas-Horizon-Setup-${{ steps.version.outputs.version }}.exe
           if-no-files-found: error
 
-      - name: Upload Horizon Portable
+      - name: Upload Horizon Installer
         uses: actions/upload-artifact@v4
         with:
-          name: crimson-atlas-horizon-portable-${{ github.sha }}
-          path: |
-            HOR1ZON/dist/Crimson-Atlas-Horizon-${{ steps.version.outputs.version }}.exe
+          name: crimson-atlas-horizon-installer-${{ github.sha }}
+          path: HOR1ZON/dist/Crimson-Atlas-Horizon-Setup-${{ steps.version.outputs.version }}.exe
           if-no-files-found: error
