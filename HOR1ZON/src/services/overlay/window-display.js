@@ -13,11 +13,11 @@ function user32Prelude() {
     '  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
     '  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);',
     '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);',
-    '  [DllImport("user32.dll")] public static extern bool GetCursorInfo(ref CURSORINFO info);',
-    '  [DllImport("user32.dll")] public static extern bool GetClipCursor(out RECT rect);',
+    '  [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);',
+    '  [DllImport("xinput1_4.dll")] public static extern int XInputGetState(uint dwUserIndex, out XINPUT_STATE state);',
     '  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }',
-    '  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }',
-    '  [StructLayout(LayoutKind.Sequential)] public struct CURSORINFO { public int cbSize; public int flags; public IntPtr hCursor; public POINT ptScreenPos; }',
+    '  [StructLayout(LayoutKind.Sequential)] public struct XINPUT_GAMEPAD { public ushort wButtons; public byte bLeftTrigger; public byte bRightTrigger; public short sThumbLX; public short sThumbLY; public short sThumbRX; public short sThumbRY; }',
+    '  [StructLayout(LayoutKind.Sequential)] public struct XINPUT_STATE { public uint dwPacketNumber; public XINPUT_GAMEPAD Gamepad; }',
     '}',
     '@'
   ].join(' ');
@@ -30,9 +30,7 @@ function parseWindow(value) {
     width: Number(value.right) - Number(value.left),
     height: Number(value.bottom) - Number(value.top)
   };
-  if (![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) {
-    throw new Error('Invalid window bounds');
-  }
+  if (![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) throw new Error('Invalid window bounds');
   if (bounds.width <= 0 || bounds.height <= 0) return null;
   return {
     hwnd: Number(value.hwnd),
@@ -43,11 +41,23 @@ function parseWindow(value) {
   };
 }
 
-function createWindowsForegroundResolver({
-  execFileFn = execFile,
-  platform = process.platform,
-  timeout = 1500
-} = {}) {
+function runPowerShell(command, { execFileFn = execFile, platform = process.platform, timeout = 1500 } = {}, callback) {
+  if (platform !== 'win32') return callback(new Error('Windows resolver requires win32'), null);
+  execFileFn(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command],
+    { windowsHide: true, timeout, maxBuffer: 1024 * 1024 },
+    (error, stdout) => {
+      if (error) return callback(error, null);
+      const raw = String(stdout || '').trim();
+      if (!raw) return callback(null, null);
+      try { callback(null, JSON.parse(raw)); }
+      catch (parseError) { callback(parseError, null); }
+    }
+  );
+}
+
+function createWindowsForegroundResolver(options = {}) {
   const command = [
     user32Prelude(),
     '$h=[HorizonUser32]::GetForegroundWindow();',
@@ -59,29 +69,15 @@ function createWindowsForegroundResolver({
     '$p=Get-Process -Id $pid -ErrorAction SilentlyContinue;',
     '[pscustomobject]@{ hwnd=$h.ToInt64(); pid=$pid; processName=if($p){$p.ProcessName}else{""}; title=if($p){$p.MainWindowTitle}else{""}; left=$r.Left; top=$r.Top; right=$r.Right; bottom=$r.Bottom } | ConvertTo-Json -Compress'
   ].join(' ');
-
-  return callback => {
-    if (platform !== 'win32') return callback(new Error('Windows foreground resolver requires win32'), null);
-    execFileFn(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command],
-      { windowsHide: true, timeout, maxBuffer: 1024 * 1024 },
-      (error, stdout) => {
-        if (error) return callback(error, null);
-        const raw = String(stdout || '').trim();
-        if (!raw) return callback(null, null);
-        try { callback(null, parseWindow(JSON.parse(raw))); }
-        catch (parseError) { callback(parseError, null); }
-      }
-    );
-  };
+  return callback => runPowerShell(command, options, (error, value) => {
+    if (error || !value) return callback(error, null);
+    try { callback(null, parseWindow(value)); } catch (parseError) { callback(parseError, null); }
+  });
 }
 
 function createWindowsGameWindowResolver({
   processNames = ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping'],
-  execFileFn = execFile,
-  platform = process.platform,
-  timeout = 1500
+  ...options
 } = {}) {
   const names = processNames.map(normalizeProcessName).filter(Boolean);
   const nameArray = names.map(name => "'" + name.replace(/'/g, "''") + "'").join(',');
@@ -100,29 +96,13 @@ function createWindowsGameWindowResolver({
     ');',
     '$items | Sort-Object area -Descending | Select-Object -First 1 | ConvertTo-Json -Compress'
   ].join(' ');
-
-  return callback => {
-    if (platform !== 'win32') return callback(new Error('Windows game resolver requires win32'), null);
-    execFileFn(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command],
-      { windowsHide: true, timeout, maxBuffer: 1024 * 1024 },
-      (error, stdout) => {
-        if (error) return callback(error, null);
-        const raw = String(stdout || '').trim();
-        if (!raw) return callback(null, null);
-        try { callback(null, parseWindow(JSON.parse(raw))); }
-        catch (parseError) { callback(parseError, null); }
-      }
-    );
-  };
+  return callback => runPowerShell(command, options, (error, value) => {
+    if (error || !value) return callback(error, null);
+    try { callback(null, parseWindow(value)); } catch (parseError) { callback(parseError, null); }
+  });
 }
 
-function createWindowsForegroundUiResolver({
-  execFileFn = execFile,
-  platform = process.platform,
-  timeout = 1500
-} = {}) {
+function createWindowsGlobalInputResolver(options = {}) {
   const command = [
     user32Prelude(),
     '$h=[HorizonUser32]::GetForegroundWindow();',
@@ -130,42 +110,14 @@ function createWindowsForegroundUiResolver({
     '$pid=0;',
     '[void][HorizonUser32]::GetWindowThreadProcessId($h,[ref]$pid);',
     '$p=Get-Process -Id $pid -ErrorAction SilentlyContinue;',
-    '$windowRect=New-Object HorizonUser32+RECT;',
-    '$windowRectOk=[HorizonUser32]::GetWindowRect($h,[ref]$windowRect);',
-    '$clipRect=New-Object HorizonUser32+RECT;',
-    '$clipRectOk=[HorizonUser32]::GetClipCursor([ref]$clipRect);',
-    '$cursorCaptured=$false;',
-    'if($windowRectOk -and $clipRectOk){ $cursorCaptured=(([Math]::Abs($clipRect.Left-$windowRect.Left) -le 4) -and ([Math]::Abs($clipRect.Top-$windowRect.Top) -le 4) -and ([Math]::Abs($clipRect.Right-$windowRect.Right) -le 4) -and ([Math]::Abs($clipRect.Bottom-$windowRect.Bottom) -le 4)) };',
-    '$ci=New-Object HorizonUser32+CURSORINFO;',
-    '$ci.cbSize=[Runtime.InteropServices.Marshal]::SizeOf($ci.GetType());',
-    '$cursorVisible=$false;',
-    'if([HorizonUser32]::GetCursorInfo([ref]$ci)){ $cursorVisible=(($ci.flags -band 1) -eq 1) };',
-    '[pscustomobject]@{ pid=$pid; processName=if($p){$p.ProcessName}else{""}; title=if($p){$p.MainWindowTitle}else{""}; cursorVisible=$cursorVisible; cursorCaptured=$cursorCaptured } | ConvertTo-Json -Compress'
+    '$pressed=@();',
+    'if (([HorizonUser32]::GetAsyncKeyState(0x1B) -band 0x8000) -ne 0) { $pressed += "ESC" }',
+    'if (([HorizonUser32]::GetAsyncKeyState(0xCF) -band 0x8000) -ne 0) { $pressed += "GAMEPAD_MENU" }',
+    'if (([HorizonUser32]::GetAsyncKeyState(0xD0) -band 0x8000) -ne 0) { $pressed += "GAMEPAD_VIEW" }',
+    'try { for($i=0;$i -lt 4;$i++){ $state=New-Object HorizonUser32+XINPUT_STATE; if([HorizonUser32]::XInputGetState([uint32]$i,[ref]$state) -eq 0){ if(($state.Gamepad.wButtons -band 0x0010) -ne 0){$pressed += "GAMEPAD_MENU"}; if(($state.Gamepad.wButtons -band 0x0020) -ne 0){$pressed += "GAMEPAD_VIEW"} } } } catch {}',
+    '[pscustomobject]@{ pid=$pid; processName=if($p){$p.ProcessName}else{""}; title=if($p){$p.MainWindowTitle}else{""}; pressed=@($pressed | Select-Object -Unique) } | ConvertTo-Json -Compress'
   ].join(' ');
-
-  return callback => {
-    if (platform !== 'win32') return callback(new Error('Windows UI resolver requires win32'), null);
-    execFileFn(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command],
-      { windowsHide: true, timeout, maxBuffer: 1024 * 1024 },
-      (error, stdout) => {
-        if (error) return callback(error, null);
-        const raw = String(stdout || '').trim();
-        if (!raw) return callback(null, null);
-        try {
-          const value = JSON.parse(raw);
-          callback(null, {
-            pid: Number(value.pid),
-            processName: String(value.processName || ''),
-            title: String(value.title || ''),
-            cursorVisible: Boolean(value.cursorVisible),
-            cursorCaptured: Boolean(value.cursorCaptured)
-          });
-        } catch (parseError) { callback(parseError, null); }
-      }
-    );
-  };
+  return callback => runPowerShell(command, options, callback);
 }
 
 function shouldTrackWindow(windowInfo, { ownProcessNames = [], ownPids = [], trackedProcessNames = [] } = {}) {
@@ -181,35 +133,48 @@ function shouldTrackWindow(windowInfo, { ownProcessNames = [], ownPids = [], tra
 }
 
 class WindowDisplayTracker {
-  constructor({ resolveWindow, screenApi, onDisplay, ownProcessNames = [], ownPids = [], trackedProcessNames = [], intervalMs = 500 } = {}) {
+  constructor({ resolveWindow, screenApi, onDisplay, onPresence = () => {}, ownProcessNames = [], ownPids = [], trackedProcessNames = [], intervalMs = 500, missingSamples = 3 } = {}) {
     if (typeof resolveWindow !== 'function') throw new TypeError('resolveWindow is required');
     if (!screenApi || (typeof screenApi.getDisplayNearestPoint !== 'function' && typeof screenApi.getDisplayMatching !== 'function')) throw new TypeError('screenApi display lookup is required');
     this.resolveWindow = resolveWindow;
     this.screen = screenApi;
     this.onDisplay = onDisplay || (() => {});
+    this.onPresence = onPresence;
     this.ownProcessNames = ownProcessNames;
     this.ownPids = ownPids;
     this.trackedProcessNames = trackedProcessNames;
     this.intervalMs = intervalMs;
+    this.missingSamples = missingSamples;
     this.timer = null;
     this.lastTarget = null;
     this.running = false;
+    this.present = false;
+    this.missingCount = 0;
   }
 
   poll() {
     this.resolveWindow((error, windowInfo) => {
-      if (error || !windowInfo || !shouldTrackWindow(windowInfo, {
-        ownProcessNames: this.ownProcessNames,
-        ownPids: this.ownPids,
-        trackedProcessNames: this.trackedProcessNames
-      })) return;
+      if (error) return;
+      const tracked = shouldTrackWindow(windowInfo, { ownProcessNames: this.ownProcessNames, ownPids: this.ownPids, trackedProcessNames: this.trackedProcessNames });
+      if (!tracked) {
+        this.missingCount += 1;
+        if (this.present && this.missingCount >= this.missingSamples) {
+          this.present = false;
+          this.lastTarget = null;
+          this.onPresence(false, null);
+        }
+        return;
+      }
+      this.missingCount = 0;
+      if (!this.present) {
+        this.present = true;
+        this.onPresence(true, windowInfo);
+      }
       const center = { x: windowInfo.bounds.x + (windowInfo.bounds.width / 2), y: windowInfo.bounds.y + (windowInfo.bounds.height / 2) };
-      const display = typeof this.screen.getDisplayNearestPoint === 'function'
-        ? this.screen.getDisplayNearestPoint(center)
-        : this.screen.getDisplayMatching(windowInfo.bounds);
+      const display = typeof this.screen.getDisplayNearestPoint === 'function' ? this.screen.getDisplayNearestPoint(center) : this.screen.getDisplayMatching(windowInfo.bounds);
       if (!display) return;
       const key = String(display.id);
-      if (this.lastTarget?.displayId === key) return;
+      if (this.lastTarget?.displayId === key && this.lastTarget?.window?.bounds?.x === windowInfo.bounds.x && this.lastTarget?.window?.bounds?.y === windowInfo.bounds.y) return;
       this.lastTarget = { displayId: key, display, window: windowInfo };
       this.onDisplay(display, windowInfo);
     });
@@ -230,62 +195,33 @@ class WindowDisplayTracker {
   }
 
   getState() {
-    return {
-      running: this.running,
-      displayId: this.lastTarget?.displayId || null,
-      window: this.lastTarget?.window || null
-    };
+    return { running: this.running, present: this.present, displayId: this.lastTarget?.displayId || null, window: this.lastTarget?.window || null };
   }
 }
 
-class GameUiHeuristicDetector {
-  constructor({
-    resolveUi,
-    onState,
-    trackedProcessNames = ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping'],
-    intervalMs = 250,
-    hideSamples = 2,
-    restoreSamples = 4
-  } = {}) {
-    if (typeof resolveUi !== 'function') throw new TypeError('resolveUi is required');
-    this.resolveUi = resolveUi;
-    this.onState = onState || (() => {});
+class GameInputUiDetector {
+  constructor({ resolveInput, onInput, trackedProcessNames = ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping'], intervalMs = 100 } = {}) {
+    if (typeof resolveInput !== 'function') throw new TypeError('resolveInput is required');
+    this.resolveInput = resolveInput;
+    this.onInput = onInput || (() => {});
     this.trackedProcessNames = trackedProcessNames;
     this.intervalMs = intervalMs;
-    this.hideSamples = hideSamples;
-    this.restoreSamples = restoreSamples;
     this.timer = null;
     this.running = false;
-    this.visibleCursorSamples = 0;
-    this.hiddenCursorSamples = 0;
-    this.state = 'UNKNOWN';
+    this.lastPressed = new Set();
   }
 
   poll() {
-    this.resolveUi((error, info) => {
+    this.resolveInput((error, info) => {
       if (error || !info) return;
       const tracked = this.trackedProcessNames.some(name => normalizeProcessName(name) === normalizeProcessName(info.processName));
       if (!tracked) {
-        this.visibleCursorSamples = 0;
-        this.hiddenCursorSamples = 0;
+        this.lastPressed.clear();
         return;
       }
-      const gameplayCursorState = !info.cursorVisible || info.cursorCaptured;
-      if (!gameplayCursorState) {
-        this.visibleCursorSamples += 1;
-        this.hiddenCursorSamples = 0;
-        if (this.visibleCursorSamples >= this.hideSamples && this.state !== 'GAME_UI_HEURISTIC') {
-          this.state = 'GAME_UI_HEURISTIC';
-          this.onState(this.state, info);
-        }
-      } else {
-        this.hiddenCursorSamples += 1;
-        this.visibleCursorSamples = 0;
-        if (this.hiddenCursorSamples >= this.restoreSamples && this.state !== 'GAMEPLAY') {
-          this.state = 'GAMEPLAY';
-          this.onState(this.state, info);
-        }
-      }
+      const pressed = new Set(Array.isArray(info.pressed) ? info.pressed : []);
+      for (const input of pressed) if (!this.lastPressed.has(input)) this.onInput(input, info);
+      this.lastPressed = pressed;
     });
   }
 
@@ -303,16 +239,20 @@ class GameUiHeuristicDetector {
     this.timer = null;
   }
 
+  reset() {
+    this.lastPressed.clear();
+  }
+
   getState() {
-    return { running: this.running, state: this.state };
+    return { running: this.running, pressed: [...this.lastPressed] };
   }
 }
 
 module.exports = {
   createWindowsForegroundResolver,
   createWindowsGameWindowResolver,
-  createWindowsForegroundUiResolver,
+  createWindowsGlobalInputResolver,
   shouldTrackWindow,
   WindowDisplayTracker,
-  GameUiHeuristicDetector
+  GameInputUiDetector
 };
