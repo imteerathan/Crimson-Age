@@ -24,7 +24,6 @@ function fillSettings(s) {
   $('#hostMode').value = s.integration.hostMode;
   $('#telemetry').checked = s.integration.telemetryEnabled;
   $('#reconnect').checked = s.integration.reconnect;
-  $('#channel').value = s.updates.channel;
   $('#checkLaunch').checked = s.updates.checkOnLaunch;
   $('#retention').value = s.privacy.diagnosticRetentionDays;
 }
@@ -50,7 +49,6 @@ function readSettingsPatch() {
       reconnect: $('#reconnect').checked
     },
     updates: {
-      channel: $('#channel').value,
       checkOnLaunch: $('#checkLaunch').checked
     },
     privacy: {
@@ -155,7 +153,10 @@ async function boot() {
   $('#hideOverlay').onclick = async () => renderOverlay(await window.horizon.hideOverlay());
   $('#toggleOverlay').onclick = async () => renderOverlay(await window.horizon.toggleOverlay());
   $('#editOverlay').onclick = async () => renderOverlay(await window.horizon.toggleOverlayEditMode());
-  $('#testUiHide').onclick = async () => renderOverlay(await window.horizon.setOverlayRuntimeState('FULLSCREEN_UI', 'manual-test'));
+  $('#testUiHide').onclick = async () => {
+    renderOverlay(await window.horizon.setOverlayRuntimeState('FULLSCREEN_UI', 'manual-test'));
+    window.setTimeout(async () => renderOverlay(await window.horizon.setOverlayRuntimeState('GAMEPLAY', 'manual-test-restore')), 2000);
+  };
   $('#testNotification').onclick = async () => renderOverlay(await window.horizon.notifyOverlay('HOR1ZON Notification', 3000));
 
   $('#refreshHost').onclick = async () => {
