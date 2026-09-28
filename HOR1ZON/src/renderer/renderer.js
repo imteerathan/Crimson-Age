@@ -1,6 +1,7 @@
 let settings;
 let updater;
 let host;
+let overlayState;
 
 const $ = (id) => document.querySelector(id);
 const pageButtons = document.querySelectorAll('[data-page]');
@@ -17,6 +18,7 @@ function fillSettings(s) {
   $('#overlayEnabled').checked = s.overlay.enabled;
   $('#autoHide').checked = s.overlay.autoHideDuringCutscene;
   $('#restore').checked = s.overlay.restoreAfterStableGameplay;
+  $('#opacityValue').textContent = `${Math.round(Number(s.overlay.opacity) * 100)}%`;
   $('#overlayMode').value = s.overlay.mode;
   $('#opacity').value = s.overlay.opacity;
   $('#hostMode').value = s.integration.hostMode;
@@ -37,6 +39,7 @@ function readSettingsPatch() {
     overlay: {
       enabled: $('#overlayEnabled').checked,
       autoHideDuringCutscene: $('#autoHide').checked,
+      autoHideDuringGameUi: $('#autoHide').checked,
       restoreAfterStableGameplay: $('#restore').checked,
       mode: $('#overlayMode').value,
       opacity: Number($('#opacity').value)
@@ -81,6 +84,8 @@ function renderOverlay(state) {
   const value = state || {};
   $('#overlayStatus').textContent = value.visible ? 'VISIBLE' : 'HIDDEN';
   $('#overlayModeDash').textContent = value.mode || 'FULL';
+  $('#overlayRuntimeDash').textContent = value.data?.runtimeState || (value.runtimeSuppressed ? 'UI HIDDEN' : 'GAMEPLAY');
+  $('#editOverlay').textContent = value.editMode ? 'Finish Position Editing' : 'Edit Overlay Position';
 }
 
 async function refreshOverlay() {
@@ -110,6 +115,7 @@ async function boot() {
 
   $('#headerVersion').textContent = `v${manifest.version}`;
   fillSettings(settings);
+  $('#opacity').addEventListener('input', () => { $('#opacityValue').textContent = `${Math.round(Number($('#opacity').value) * 100)}%`; });
   renderHost(host);
   renderUpdater(updater);
   await refreshOverlay();
@@ -148,6 +154,9 @@ async function boot() {
   $('#showOverlay').onclick = async () => renderOverlay(await window.horizon.showOverlay());
   $('#hideOverlay').onclick = async () => renderOverlay(await window.horizon.hideOverlay());
   $('#toggleOverlay').onclick = async () => renderOverlay(await window.horizon.toggleOverlay());
+  $('#editOverlay').onclick = async () => renderOverlay(await window.horizon.toggleOverlayEditMode());
+  $('#testUiHide').onclick = async () => renderOverlay(await window.horizon.setOverlayRuntimeState('FULLSCREEN_UI', 'manual-test'));
+  $('#testNotification').onclick = async () => renderOverlay(await window.horizon.notifyOverlay('HOR1ZON Notification', 3000));
 
   $('#refreshHost').onclick = async () => {
     host = await window.horizon.getHostStatus();
