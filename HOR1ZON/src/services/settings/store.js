@@ -6,13 +6,15 @@ const DEFAULTS = Object.freeze({
   general: { launchAtStartup: false, compactMode: false, language: 'auto' },
   overlay: { enabled: true, mode: 'FULL', opacity: 0.82, manualHide: false, autoHideDuringCutscene: true, autoHideDuringGameUi: true, restoreAfterStableGameplay: true, position: { x: 1, y: 0.03 } },
   integration: { hostMode: 'AUTO', telemetryEnabled: false, reconnect: true },
-  updates: { channel: 'stable', checkOnLaunch: true },
+  updates: { checkOnLaunch: true },
   privacy: { diagnosticRetentionDays: 14 }
 });
 
 function normalizeLegacySettings(state) {
   const next = clone(state);
   if (!next.overlay || typeof next.overlay !== 'object') next.overlay = {};
+  if (!next.updates || typeof next.updates !== 'object') next.updates = {};
+  delete next.updates.channel;
   if (!Number.isFinite(next.overlay.opacity)) next.overlay.opacity = DEFAULTS.overlay.opacity;
   next.overlay.opacity = Math.max(0.1, Math.min(0.9, next.overlay.opacity));
   if (typeof next.overlay.autoHideDuringGameUi !== 'boolean') next.overlay.autoHideDuringGameUi = true;
