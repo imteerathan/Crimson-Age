@@ -197,7 +197,7 @@ class WindowDisplayTracker {
       const display = typeof this.screen.getDisplayNearestPoint === 'function' ? this.screen.getDisplayNearestPoint(center) : this.screen.getDisplayMatching(windowInfo.bounds);
       if (!display) { this.polling = false; return; }
       const key = String(display.id);
-      if (this.lastTarget?.displayId === key && this.lastTarget?.window?.bounds?.x === windowInfo.bounds.x && this.lastTarget?.window?.bounds?.y === windowInfo.bounds.y) {
+      if (this.lastTarget?.displayId === key && this.lastTarget?.window?.bounds?.x === windowInfo.bounds.x && this.lastTarget?.window?.bounds?.y === windowInfo.bounds.y && this.lastTarget?.window?.bounds?.width === windowInfo.bounds.width && this.lastTarget?.window?.bounds?.height === windowInfo.bounds.height) {
         this.polling = false;
         return;
       }
