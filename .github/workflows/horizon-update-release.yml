@@ -79,6 +79,7 @@ jobs:
         run: |
           $version = "${{ steps.release.outputs.version }}"
           $channel = "${{ steps.release.outputs.channel }}"
+          New-Item -ItemType Directory -Force -Path "../updates/$channel" | Out-Null
           $exe = "dist/Crimson-Atlas-Horizon-Setup-$version.exe"
           if (!(Test-Path $exe)) { throw "Missing release artifact: $exe" }
 
