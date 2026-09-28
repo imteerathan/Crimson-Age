@@ -14,6 +14,7 @@ function user32Prelude() {
     '  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);',
     '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);',
     '  [DllImport("user32.dll")] public static extern bool GetCursorInfo(ref CURSORINFO info);',
+    '  [DllImport("user32.dll")] public static extern bool GetClipCursor(out RECT rect);',
     '  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }',
     '  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }',
     '  [StructLayout(LayoutKind.Sequential)] public struct CURSORINFO { public int cbSize; public int flags; public IntPtr hCursor; public POINT ptScreenPos; }',
@@ -129,11 +130,17 @@ function createWindowsForegroundUiResolver({
     '$pid=0;',
     '[void][HorizonUser32]::GetWindowThreadProcessId($h,[ref]$pid);',
     '$p=Get-Process -Id $pid -ErrorAction SilentlyContinue;',
+    '$windowRect=New-Object HorizonUser32+RECT;',
+    '$windowRectOk=[HorizonUser32]::GetWindowRect($h,[ref]$windowRect);',
+    '$clipRect=New-Object HorizonUser32+RECT;',
+    '$clipRectOk=[HorizonUser32]::GetClipCursor([ref]$clipRect);',
+    '$cursorCaptured=$false;',
+    'if($windowRectOk -and $clipRectOk){ $cursorCaptured=(([Math]::Abs($clipRect.Left-$windowRect.Left) -le 4) -and ([Math]::Abs($clipRect.Top-$windowRect.Top) -le 4) -and ([Math]::Abs($clipRect.Right-$windowRect.Right) -le 4) -and ([Math]::Abs($clipRect.Bottom-$windowRect.Bottom) -le 4)) };',
     '$ci=New-Object HorizonUser32+CURSORINFO;',
     '$ci.cbSize=[Runtime.InteropServices.Marshal]::SizeOf($ci.GetType());',
     '$cursorVisible=$false;',
     'if([HorizonUser32]::GetCursorInfo([ref]$ci)){ $cursorVisible=(($ci.flags -band 1) -eq 1) };',
-    '[pscustomobject]@{ pid=$pid; processName=if($p){$p.ProcessName}else{""}; title=if($p){$p.MainWindowTitle}else{""}; cursorVisible=$cursorVisible } | ConvertTo-Json -Compress'
+    '[pscustomobject]@{ pid=$pid; processName=if($p){$p.ProcessName}else{""}; title=if($p){$p.MainWindowTitle}else{""}; cursorVisible=$cursorVisible; cursorCaptured=$cursorCaptured } | ConvertTo-Json -Compress'
   ].join(' ');
 
   return callback => {
@@ -152,7 +159,8 @@ function createWindowsForegroundUiResolver({
             pid: Number(value.pid),
             processName: String(value.processName || ''),
             title: String(value.title || ''),
-            cursorVisible: Boolean(value.cursorVisible)
+            cursorVisible: Boolean(value.cursorVisible),
+            cursorCaptured: Boolean(value.cursorCaptured)
           });
         } catch (parseError) { callback(parseError, null); }
       }
@@ -259,7 +267,8 @@ class GameUiHeuristicDetector {
         this.hiddenCursorSamples = 0;
         return;
       }
-      if (info.cursorVisible) {
+      const gameplayCursorState = !info.cursorVisible || info.cursorCaptured;
+      if (!gameplayCursorState) {
         this.visibleCursorSamples += 1;
         this.hiddenCursorSamples = 0;
         if (this.visibleCursorSamples >= this.hideSamples && this.state !== 'GAME_UI_HEURISTIC') {
