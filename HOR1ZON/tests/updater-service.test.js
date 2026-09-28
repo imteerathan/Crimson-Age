@@ -23,3 +23,12 @@ test('updater service reacts to package events and exposes install path', async 
   assert.equal(installed, true);
   assert.equal(service.getState().state, 'RESTARTING');
 });
+
+test('duplicate checking events are idempotent', () => {
+  const fake = new EventEmitter();
+  const service = new UpdaterService({ updater: fake, version: '0.1.0' });
+  fake.emit('checking-for-update');
+  fake.emit('checking-for-update');
+  assert.equal(service.getState().state, 'CHECKING');
+  assert.equal(service.getState().error, null);
+});
