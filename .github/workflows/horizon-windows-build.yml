@@ -51,9 +51,23 @@ jobs:
           if (!(Test-Path $portable)) { throw "Missing portable artifact: $portable" }
           Get-ChildItem dist | Select-Object Name,Length
 
-      - name: Upload Windows artifacts
+      - name: Read package version
+        id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Horizon Installer
         uses: actions/upload-artifact@v4
         with:
-          name: crimson-atlas-horizon-windows-${{ github.sha }}
-          path: HOR1ZON/dist/*
+          name: crimson-atlas-horizon-installer-${{ github.sha }}
+          path: |
+            HOR1ZON/dist/Crimson-Atlas-Horizon-Setup-${{ steps.version.outputs.version }}.exe
+          if-no-files-found: error
+
+      - name: Upload Horizon Portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: crimson-atlas-horizon-portable-${{ github.sha }}
+          path: |
+            HOR1ZON/dist/Crimson-Atlas-Horizon-${{ steps.version.outputs.version }}.exe
           if-no-files-found: error
