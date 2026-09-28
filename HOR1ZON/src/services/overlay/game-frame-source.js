@@ -67,6 +67,7 @@ class GameUiMonitor {
     this.running = false;
     this.polling = false;
     this.lastError = null;
+    this.lastObservation = null;
   }
 
   setTargetWindow(windowInfo) {
@@ -91,6 +92,7 @@ class GameUiMonitor {
     this.visualDetector.reset();
     this.stateEngine.reset(reason);
     this.lastError = null;
+    this.lastObservation = null;
     return this.getState();
   }
 
@@ -100,14 +102,15 @@ class GameUiMonitor {
     try {
       const captured = await this.frameSource.capture(this.targetWindow);
       const vision = this.visualDetector.analyse(captured.image);
-      this.onObservation({
+      this.lastObservation = {
         ...vision,
         capture: {
           sourceId: captured.sourceId,
           sourceName: captured.sourceName,
           hwnd: captured.hwnd
         }
-      });
+      };
+      this.onObservation(this.lastObservation);
       const state = this.stateEngine.ingest({
         telemetry: this.telemetry,
         vision,
@@ -146,7 +149,8 @@ class GameUiMonitor {
       telemetry: this.telemetry,
       detector: this.visualDetector.getState(),
       engine: this.stateEngine.getState(),
-      lastError: this.lastError
+      lastError: this.lastError,
+      lastObservation: this.lastObservation
     };
   }
 }
