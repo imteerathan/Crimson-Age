@@ -313,7 +313,7 @@ Never place migration logic inside UI handlers.
 
 The overlay is a presentation surface, not a game-logic engine.
 
-Required states:
+Required presentation modes:
 
 ```text
 HIDDEN
@@ -323,6 +323,46 @@ FOCUS
 CUTSCENE_HIDDEN
 RESTORE_PENDING
 ```
+
+The runtime decision must come from confirmed game state rather than a single input event.
+
+### Layered game-state detection
+
+```text
+              Atlas / Route / Telemetry
+                         |
+                         v
+                   State Evidence
+                         ^
+                         |
+          Visual Game-Window Analysis
+                         ^
+                         |
+                  Input Hint Layer
+                         |
+                         v
+                 Game UI State Engine
+                         |
+              +----------+----------+
+              |                     |
+              v                     v
+        CONFIRMED GAME UI      CONFIRMED GAMEPLAY
+              |                     |
+              v                     v
+        Overlay suppressed     Overlay restored
+```
+
+Priority is:
+
+1. host telemetry with sufficient confidence;
+2. visual evidence from the game window;
+3. input hints only as a trigger/context signal.
+
+Input alone must never suppress the overlay. This prevents false positives such as controller View/Back being used for camera zoom and prevents mouse/keyboard actions from being treated as proof that a menu is open.
+
+The visual fallback captures the actual game window at low resolution and maintains a gameplay baseline. Large, stable visual transitions are treated as `FULLSCREEN_UI` evidence. Specific states such as `INVENTORY`, `SKILL`, and `STORAGE` can later be supplied by host telemetry or validated visual signatures without changing the runtime contract.
+
+State transitions require consecutive confirmation samples. Return to gameplay also requires consecutive stable samples. `UNKNOWN` and insufficient evidence are fail-safe and leave the overlay state unchanged.
 
 Rules inherited from the baseline design:
 
