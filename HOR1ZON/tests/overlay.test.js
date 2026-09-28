@@ -120,3 +120,33 @@ test('runtime suppression hides overlay but notifications remain visible for the
   assert.equal(manager.getState().visible, false);
   assert.equal(manager.getState().data.notification, null);
 });
+
+
+test('overlay window follows target display and normalized position', () => {
+  const ManagerWindow = fakeWindowFactory();
+  const display1 = { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, workArea: { x: 0, y: 0, width: 1920, height: 1040 } };
+  const display2 = { id: 2, bounds: { x: 1920, y: 0, width: 2560, height: 1440 }, workArea: { x: 1920, y: 0, width: 2560, height: 1400 } };
+  const manager = new OverlayManager({
+    BrowserWindowClass: ManagerWindow,
+    screenApi: {
+      getDisplayNearestPoint: () => display1
+    },
+    pathModule: path,
+    overlayHtmlPath: '/overlay/index.html',
+    overlayPreloadPath: '/overlay/preload.js'
+  });
+
+  manager.setTargetDisplay(display2);
+  manager.show();
+  manager.window.webContents.listeners['did-finish-load']();
+  assert.equal(manager.window.bounds.x, 3970);
+  assert.equal(manager.window.bounds.y, 39);
+
+  manager.setPosition({ x: 0, y: 0 });
+  assert.equal(manager.window.bounds.x, 1928);
+  assert.equal(manager.window.bounds.y, 8);
+
+  manager.setTargetDisplay(display1);
+  assert.equal(manager.window.bounds.x, 8);
+  assert.equal(manager.window.bounds.y, 8);
+});
