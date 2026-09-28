@@ -21,7 +21,8 @@ function fakeWindowFactory() {
       this.bounds = null;
     }
     setAlwaysOnTop() {}
-    setIgnoreMouseEvents() {}
+    setIgnoreMouseEvents(value) { this.ignoreMouseEvents = value; }
+    setFocusable(value) { this.focusable = value; }
     on(event, cb) { this.listeners[event] = cb; }
     setBounds(bounds) { this.bounds = bounds; }
     loadFile() {}
@@ -68,4 +69,51 @@ test('manual hide policy prevents showing the overlay', () => {
   manager.configure({ manualHide: true });
   manager.show();
   assert.equal(manager.getState().visible, false);
+});
+
+
+test('overlay position is persisted through position callback and edit mode enables pointer input', () => {
+  const ManagerWindow = fakeWindowFactory();
+  let savedPosition = null;
+  const manager = new OverlayManager({
+    BrowserWindowClass: ManagerWindow,
+    screenApi: {
+      getCursorScreenPoint: () => ({ x: 0, y: 0 }),
+      getDisplayNearestPoint: () => ({ workArea: { x: 0, y: 0, width: 1280, height: 720 } })
+    },
+    pathModule: path,
+    overlayHtmlPath: '/overlay/index.html',
+    overlayPreloadPath: '/overlay/preload.js',
+    onPositionChange: position => { savedPosition = position; }
+  });
+  manager.show();
+  manager.setEditMode(true);
+  assert.equal(manager.getState().editMode, true);
+  manager.setPosition({ x: 0.25, y: 0.75 });
+  assert.deepEqual(savedPosition, { x: 0.25, y: 0.75 });
+  assert.equal(manager.getState().position.x, 0.25);
+  assert.equal(manager.getState().position.y, 0.75);
+});
+
+test('runtime suppression hides overlay but notifications remain visible for their duration', async () => {
+  const ManagerWindow = fakeWindowFactory();
+  const manager = new OverlayManager({
+    BrowserWindowClass: ManagerWindow,
+    screenApi: {
+      getCursorScreenPoint: () => ({ x: 0, y: 0 }),
+      getDisplayNearestPoint: () => ({ workArea: { x: 0, y: 0, width: 1280, height: 720 } })
+    },
+    pathModule: path,
+    overlayHtmlPath: '/overlay/index.html',
+    overlayPreloadPath: '/overlay/preload.js'
+  });
+  manager.show();
+  manager.setRuntimeSuppressed(true, 'fullscreen-ui');
+  assert.equal(manager.getState().visible, false);
+  manager.notify('UI notification', 25);
+  assert.equal(manager.getState().visible, true);
+  assert.equal(manager.getState().data.notification.message, 'UI notification');
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(manager.getState().visible, false);
+  assert.equal(manager.getState().data.notification, null);
 });
