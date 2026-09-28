@@ -3,6 +3,7 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const { SettingsStore } = require('../services/settings/store');
 const { UpdaterService } = require('../services/updater/service');
+const { resolveFeedUrl } = require('../services/updater/feed');
 const { EventBus } = require('../core/events/event-bus');
 const { validateManifest } = require('../core/contracts/manifest');
 const { AtlasConnection } = require('../adapters/atlas/connection');
@@ -58,7 +59,14 @@ function createWindow() {
 function registerIpc() {
   ipcMain.handle('horizon:manifest', () => manifest);
   ipcMain.handle('horizon:settings:get', () => settings.get());
-  ipcMain.handle('horizon:settings:set', (_event, patch) => settings.set(patch));
+  ipcMain.handle('horizon:settings:set', (_event, patch) => {
+    const next = settings.set(patch);
+    if (app.isPackaged) {
+      const channel = next.updates.channel || manifest.updater.channel || 'stable';
+      autoUpdater.setFeedURL({ provider: 'generic', url: resolveFeedUrl(manifest.updater.feedBase, channel) });
+    }
+    return next;
+  });
   ipcMain.handle('horizon:settings:reset', () => settings.reset());
 
   ipcMain.handle('horizon:host:status', () => atlas.getState());
@@ -104,16 +112,23 @@ app.whenReady().then(() => {
   diagnostics.prune();
   extensionState.markStarted(new Date().toISOString());
   recordDiagnostic('horizon.lifecycle.boot', { version: app.getVersion(), migrationVersion: migrationResult.version });
-  const feedUrl = process.env.HORIZON_UPDATE_FEED_URL || '';
-  if (app.isPackaged && feedUrl) {
-    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
-  }
+  const envFeedUrl = process.env.HORIZON_UPDATE_FEED_URL || '';
+  const configureUpdaterFeed = () => {
+    const channel = settings.get().updates.channel || manifest.updater.channel || 'stable';
+    const feedUrl = envFeedUrl || resolveFeedUrl(manifest.updater.feedBase, channel);
+    if (app.isPackaged && feedUrl) {
+      autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
+    }
+    return Boolean(feedUrl);
+  };
+
+  const updaterConfigured = configureUpdaterFeed();
 
   updater = new UpdaterService({
     updater: autoUpdater,
     version: app.getVersion(),
     isPackaged: app.isPackaged,
-    configured: Boolean(feedUrl) || !app.isPackaged,
+    configured: updaterConfigured || !app.isPackaged,
     emit: sendUpdaterState
   });
 
