@@ -95,6 +95,8 @@ app.whenReady().then(() => {
   autoUpdater.allowDowngrade = false;
 
   registerIpc();
+  atlas.evaluate(null, []);
+  atlasLoader.unload('HOST_NOT_FOUND');
   createWindow();
   sendUpdaterState(updater.getState());
 
