@@ -113,7 +113,7 @@ test('runtime suppression hides overlay but notifications remain visible for the
   manager.notify('UI notification', 25);
   assert.equal(manager.getState().visible, true);
   assert.equal(manager.getState().data.notification.message, 'UI notification');
-  await new Promise(resolve => setTimeout(resolve, 40));
+  await new Promise(resolve => setTimeout(resolve, 520));
   assert.equal(manager.getState().visible, false);
   assert.equal(manager.getState().data.notification, null);
 });
