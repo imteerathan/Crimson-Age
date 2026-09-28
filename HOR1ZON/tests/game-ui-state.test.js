@@ -11,6 +11,20 @@ test('input hint never hides overlay by itself', () => {
   assert.equal(states.includes('FULLSCREEN_UI'), false);
 });
 
+test('a controller input hint cannot promote a low-confidence visual UI result', () => {
+  const engine = new GameUiStateEngine({ candidateFrames: 1, minConfidence: 0.72 });
+  engine.noteInputHint('GAMEPAD_VIEW');
+  engine.ingest({
+    vision: {
+      state: 'FULLSCREEN_UI',
+      confidence: 0.68,
+      uiLikelihood: 0.68,
+      baselineReady: true
+    }
+  });
+  assert.equal(engine.getState().state, 'GAMEPLAY');
+});
+
 test('vision UI requires consecutive confirmation frames', () => {
   const states = [];
   const engine = new GameUiStateEngine({ onState: state => states.push(state.state), candidateFrames: 3 });
