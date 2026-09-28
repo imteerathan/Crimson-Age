@@ -13,7 +13,7 @@ const { DiagnosticsService } = require('../services/diagnostics/service');
 const { MigrationService } = require('../services/migration/service');
 const { OverlayManager } = require('../services/overlay/manager');
 const { OverlayRuntimeGuard } = require('../services/overlay/runtime-guard');
-const { createWindowsForegroundResolver, WindowDisplayTracker } = require('../services/overlay/window-display');
+const { createWindowsGameWindowResolver, createWindowsForegroundUiResolver, WindowDisplayTracker, GameUiHeuristicDetector } = require('../services/overlay/window-display');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -28,6 +28,7 @@ const atlasLoader = createLoader({ manifest, onEvent: event => events.emit(event
 let overlay;
 let runtimeGuard;
 let displayTracker;
+let gameUiDetector;
 
 function recordDiagnostic(event, payload) {
   if (diagnostics) diagnostics.record(event, payload);
@@ -75,7 +76,9 @@ function createOverlay() {
   });
 
   if (process.platform === 'win32') {
-    const resolver = createWindowsForegroundResolver();
+    const resolver = createWindowsGameWindowResolver({
+      processNames: ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping']
+    });
     displayTracker = new WindowDisplayTracker({
       resolveWindow: resolver,
       screenApi: require('electron').screen,
@@ -110,6 +113,23 @@ function createOverlay() {
       }
     });
     displayTracker.start();
+
+    gameUiDetector = new GameUiHeuristicDetector({
+      resolveUi: createWindowsForegroundUiResolver(),
+      trackedProcessNames: ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping'],
+      onState: (state, windowInfo) => {
+        const current = runtimeGuard.getState().state;
+        if (state === 'GAME_UI_HEURISTIC' && ['GAMEPLAY', 'GAME_UI_HEURISTIC'].includes(current)) {
+          runtimeGuard.setState('GAME_UI_HEURISTIC', {
+            reason: 'game-cursor-visible',
+            window: windowInfo?.title || null
+          });
+        } else if (state === 'GAMEPLAY' && current === 'GAME_UI_HEURISTIC') {
+          runtimeGuard.setState('GAMEPLAY', { reason: 'game-cursor-hidden' });
+        }
+      }
+    });
+    gameUiDetector.start();
   }
 }
   
@@ -264,6 +284,7 @@ const { globalShortcut } = require('electron');
 
 app.on('before-quit', () => {
   if (displayTracker) displayTracker.stop();
+  if (gameUiDetector) gameUiDetector.stop();
   if (overlay) overlay.destroy();
   globalShortcut.unregister('CommandOrControl+Shift+H');
   const timestamp = new Date().toISOString();
