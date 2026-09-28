@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const packageJson = require('../package.json');
+const manifest = require('../manifest.json');
 
 test('Windows distribution is self-contained and updater endpoint remains external', () => {
   assert.equal(packageJson.build.appId, 'com.crimsonatlas.horizon');
@@ -8,4 +9,7 @@ test('Windows distribution is self-contained and updater endpoint remains extern
   assert.deepEqual(packageJson.build.win.target.map(target => target.target), ['nsis']);
   assert.equal(packageJson.build.directories.output, 'dist');
   assert.equal(packageJson.build.publish, undefined);
+  assert.equal(manifest.updater.provider, 'generic');
+  assert.equal(manifest.updater.channel, 'stable');
+  assert.match(manifest.updater.feedBase, /^https:\\/\\//);
 });
