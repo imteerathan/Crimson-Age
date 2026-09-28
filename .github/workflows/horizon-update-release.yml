@@ -51,7 +51,7 @@ jobs:
           } else {
             $marker = Get-ChildItem ../updates/PUBLISH-* | Sort-Object Name | Select-Object -Last 1
             if ($null -eq $marker) { throw "No Horizon publish marker found." }
-            $version = $marker.BaseName -replace '^PUBLISH-', ''
+            $version = $marker.Name -replace '^PUBLISH-', ''
             $channel = 'stable'
           }
           if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') { throw "Invalid SemVer: $version" }
@@ -92,7 +92,7 @@ jobs:
               sha512: $($meta.sha512)
               size: $($meta.size)
           releaseDate: $releaseDate
-          "@ | Set-Content -Path "../updates/$channel/latest.yml" -Encoding utf8NoBOM
+          "@ | Set-Content -Path "../updates/$channel/latest.yml" -Encoding UTF8
 
       - name: Publish Horizon release
         shell: powershell
