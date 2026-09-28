@@ -21,6 +21,6 @@ test('diagnostics records events and prunes by retention window', () => {
   service.record('new');
 
   assert.equal(service.listRecent(10).length, 3);
-  assert.equal(service.prune(), 1);
+  assert.equal(service.prune(), 2);
   assert.deepEqual(service.listRecent(10).map(x => x.event), ['new']);
 });
