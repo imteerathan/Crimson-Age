@@ -172,10 +172,16 @@ class VisualGameUiDetector {
     let confidence = uiLikelihood;
     let reason = 'uncertain-visual-state';
 
-    if (baselineReady && uiLikelihood >= this.uiThreshold && motion <= this.maxStaticMotion) {
+    const strongStructuralTransition = baselineReady
+      && difference >= 0.28
+      && histShift >= 0.14
+      && (spatialScore * 0.65 + histogramScore * 0.35) >= 0.82
+      && motion <= Math.min(0.35, this.maxStaticMotion * 3);
+
+    if (baselineReady && ((uiLikelihood >= this.uiThreshold && motion <= this.maxStaticMotion) || strongStructuralTransition)) {
       state = 'FULLSCREEN_UI';
-      confidence = uiLikelihood;
-      reason = 'stable-visual-ui';
+      confidence = Math.max(uiLikelihood, strongStructuralTransition ? 0.78 : 0);
+      reason = strongStructuralTransition && motion > this.maxStaticMotion ? 'strong-visual-ui-transition' : 'stable-visual-ui';
     } else if (gameplayLike) {
       state = 'GAMEPLAY';
       confidence = Math.max(0.5, 1 - uiLikelihood);
