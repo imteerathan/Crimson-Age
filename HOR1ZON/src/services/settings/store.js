@@ -4,11 +4,25 @@ const { validateSettings } = require('./schema');
 
 const DEFAULTS = Object.freeze({
   general: { launchAtStartup: false, compactMode: false, language: 'auto' },
-  overlay: { enabled: true, mode: 'FULL', opacity: 0.92, manualHide: false, autoHideDuringCutscene: true, restoreAfterStableGameplay: true },
+  overlay: { enabled: true, mode: 'FULL', opacity: 0.82, manualHide: false, autoHideDuringCutscene: true, autoHideDuringGameUi: true, restoreAfterStableGameplay: true, position: { x: 1, y: 0.03 } },
   integration: { hostMode: 'AUTO', telemetryEnabled: false, reconnect: true },
   updates: { channel: 'stable', checkOnLaunch: true },
   privacy: { diagnosticRetentionDays: 14 }
 });
+
+function normalizeLegacySettings(state) {
+  const next = clone(state);
+  if (!next.overlay || typeof next.overlay !== 'object') next.overlay = {};
+  if (!Number.isFinite(next.overlay.opacity)) next.overlay.opacity = DEFAULTS.overlay.opacity;
+  next.overlay.opacity = Math.max(0.1, Math.min(1, next.overlay.opacity));
+  if (typeof next.overlay.autoHideDuringGameUi !== 'boolean') next.overlay.autoHideDuringGameUi = true;
+  if (!next.overlay.position || typeof next.overlay.position !== 'object') next.overlay.position = clone(DEFAULTS.overlay.position);
+  if (!Number.isFinite(next.overlay.position.x)) next.overlay.position.x = DEFAULTS.overlay.position.x;
+  if (!Number.isFinite(next.overlay.position.y)) next.overlay.position.y = DEFAULTS.overlay.position.y;
+  next.overlay.position.x = Math.max(0, Math.min(1, next.overlay.position.x));
+  next.overlay.position.y = Math.max(0, Math.min(1, next.overlay.position.y));
+  return next;
+}
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 
@@ -32,7 +46,7 @@ class SettingsStore {
   load() {
     try {
       const raw = fs.readFileSync(this.filePath, 'utf8');
-      this.state = merge(this.defaults, JSON.parse(raw));
+      this.state = normalizeLegacySettings(merge(this.defaults, JSON.parse(raw)));
       validateSettings(this.state);
     } catch (error) {
       if (error.code !== 'ENOENT') {
@@ -48,7 +62,7 @@ class SettingsStore {
   get() { return clone(this.state); }
 
   set(patch) {
-    const next = merge(this.state, patch);
+    const next = normalizeLegacySettings(merge(this.state, patch));
     validateSettings(next);
     this.state = next;
     this.save();
