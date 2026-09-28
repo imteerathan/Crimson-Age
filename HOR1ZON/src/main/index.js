@@ -49,6 +49,7 @@ function createOverlay() {
     screenApi: require('electron').screen,
     pathModule: path,
     overlayHtmlPath: path.join(__dirname, '../overlay/index.html'),
+    overlayPreloadPath: path.join(__dirname, '../overlay/preload.js'),
     onState: state => {
       recordDiagnostic('horizon.overlay.state', state);
     }
