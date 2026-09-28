@@ -176,8 +176,7 @@ function registerIpc() {
   ipcMain.handle('horizon:settings:set', (_event, patch) => {
     const next = settings.set(patch);
     if (app.isPackaged) {
-      const channel = next.updates.channel || manifest.updater.channel || 'stable';
-      autoUpdater.setFeedURL({ provider: 'generic', url: resolveFeedUrl(manifest.updater.feedBase, channel) });
+      autoUpdater.setFeedURL({ provider: 'generic', url: resolveFeedUrl(manifest.updater.feedBase) });
     }
     syncOverlay();
     return next;
@@ -185,8 +184,7 @@ function registerIpc() {
   ipcMain.handle('horizon:settings:reset', () => {
     const next = settings.reset();
     if (app.isPackaged) {
-      const channel = next.updates.channel || manifest.updater.channel || 'stable';
-      autoUpdater.setFeedURL({ provider: 'generic', url: resolveFeedUrl(manifest.updater.feedBase, channel) });
+      autoUpdater.setFeedURL({ provider: 'generic', url: resolveFeedUrl(manifest.updater.feedBase) });
     }
     syncOverlay();
     return next;
@@ -246,8 +244,7 @@ app.whenReady().then(() => {
   recordDiagnostic('horizon.lifecycle.boot', { version: app.getVersion(), migrationVersion: migrationResult.version });
   const envFeedUrl = process.env.HORIZON_UPDATE_FEED_URL || '';
   const configureUpdaterFeed = () => {
-    const channel = settings.get().updates.channel || manifest.updater.channel || 'stable';
-    const feedUrl = envFeedUrl || resolveFeedUrl(manifest.updater.feedBase, channel);
+    const feedUrl = envFeedUrl || resolveFeedUrl(manifest.updater.feedBase);
     if (app.isPackaged && feedUrl) {
       autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
     }
