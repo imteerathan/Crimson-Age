@@ -1,6 +1,6 @@
-﻿version: 0.1.3
+﻿version: 0.1.4
 files:
-  - url: https://github.com/imteerathan/Crimson-Age/releases/download/horizon-v0.1.3/Crimson-Atlas-Horizon-Setup-0.1.3.exe
-    sha512: PsPxkuqJmEDEY7sPzopKjEH1atU+7yzEYaTFWlYPDuKvuzkzhaiiyucm8T6/ZdvALIzLbBSBJ711vnUr6AzYRg==
-    size: 93996667
-releaseDate: 2026-09-28T06:35:13.4144970Z
+  - url: https://github.com/imteerathan/Crimson-Age/releases/download/horizon-v0.1.4/Crimson-Atlas-Horizon-Setup-0.1.4.exe
+    sha512: RV42/Tok50jvQAHdt2PJVWBMO/mHuR1ScwhD0RQutJLaKHLaVR2SX1z8I2JH4bop7WUV67dgqYNWNmfjQ7bx3A==
+    size: 93997067
+releaseDate: 2026-09-28T08:28:17.7399220Z
