@@ -6,7 +6,8 @@ class OverlayManager {
     overlayHtmlPath,
     overlayPreloadPath,
     onState = () => {},
-    onPositionChange = () => {}
+    onPositionChange = () => {},
+    displayResolver = null
   }) {
     if (typeof BrowserWindowClass !== 'function') throw new TypeError('BrowserWindowClass is required');
     if (!screenApi || typeof screenApi.getDisplayNearestPoint !== 'function') {
@@ -19,6 +20,8 @@ class OverlayManager {
     this.overlayPreloadPath = overlayPreloadPath;
     this.onState = onState;
     this.onPositionChange = onPositionChange;
+    this.displayResolver = displayResolver;
+    this.targetDisplay = null;
     this.window = null;
     this.visible = false;
     this.editMode = false;
@@ -96,10 +99,7 @@ class OverlayManager {
 
   reposition() {
     if (!this.window || this.window.isDestroyed()) return;
-    const point = this.screen.getCursorScreenPoint
-      ? this.screen.getCursorScreenPoint()
-      : { x: 0, y: 0 };
-    const display = this.screen.getDisplayNearestPoint(point);
+    const display = this.targetDisplay || this.displayResolver?.() || this.screen.getDisplayNearestPoint({ x: 0, y: 0 });
     const area = display.workArea || display.bounds;
     const width = area.width;
     const height = area.height;
@@ -109,6 +109,16 @@ class OverlayManager {
       width,
       height
     });
+  }
+
+  setTargetDisplay(display) {
+    if (!display || !display.bounds) return this.getState();
+    const changed = !this.targetDisplay || String(this.targetDisplay.id) !== String(display.id);
+    this.targetDisplay = display;
+    if (changed) this.reposition();
+    this.pushState();
+    this.emitState('target-display-changed');
+    return this.getState();
   }
 
   configure(config = {}) {
@@ -219,6 +229,7 @@ class OverlayManager {
       editMode: this.editMode,
       runtimeSuppressed: this.runtimeSuppressed,
       ...this.config,
+      targetDisplay: this.targetDisplay ? { id: this.targetDisplay.id, bounds: this.targetDisplay.bounds } : null,
       data: { ...this.data }
     };
   }
