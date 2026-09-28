@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, screen } = require('electron');
+const { createBridge } = require('./horizon-bridge');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -7,6 +8,13 @@ const { autoUpdater } = require('electron-updater');
 let win;
 let db;
 let logFile;
+let overlayWin;
+let horizonBridge;
+let horizonGameState = {
+  phase: 'BOOTING', gameProcess: false, atlasService: false, atlasHttp: false,
+  telemetry: 'OFFLINE', position: null, provider: null, lastUpdate: null, lastError: null, probes: []
+};
+let overlayManualHidden = false;
 let updaterState = {
   status: 'IDLE',
   message: 'Updater ready',
@@ -927,6 +935,82 @@ function analyzeSaveStructure(filePath) {
   };
 }
 
+function createOverlayWindow() {
+  if (overlayWin && !overlayWin.isDestroyed()) return overlayWin;
+  overlayWin = new BrowserWindow({
+    width: 360,
+    height: 142,
+    minWidth: 300,
+    minHeight: 120,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  overlayWin.loadFile(path.join(__dirname, '../public/overlay.html'));
+  overlayWin.webContents.once('did-finish-load', () => {
+    overlayWin.webContents.send('horizon:game-state', horizonGameState);
+  });
+  overlayWin.on('closed', () => { overlayWin = null; });
+  overlayWin.setAlwaysOnTop(true, 'floating');
+  const display = screen.getPrimaryDisplay();
+  const work = display.workArea;
+  overlayWin.setPosition(work.x + work.width - 380, work.y + 24, false);
+  return overlayWin;
+}
+
+function setOverlayVisible(visible, manual = true) {
+  if (manual) overlayManualHidden = !visible;
+  const overlay = createOverlayWindow();
+  if (visible) {
+    overlay.showInactive();
+    overlay.setAlwaysOnTop(true, 'floating');
+  } else {
+    overlay.hide();
+  }
+  if (!overlay.isDestroyed()) overlay.webContents.send('horizon:overlay-visibility', { visible });
+  return visible;
+}
+
+function syncHorizonState(next) {
+  horizonGameState = next;
+  if (win && !win.isDestroyed()) win.webContents.send('horizon:game-state', horizonGameState);
+  if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('horizon:game-state', horizonGameState);
+  console.log('Horizon game state', horizonGameState);
+  if (horizonGameState.gameProcess && !overlayManualHidden && horizonGameState.phase === 'CONNECTED') {
+    setOverlayVisible(true, false);
+  }
+}
+
+function configureHorizonBridge() {
+  horizonBridge = createBridge({
+    baseUrls: [
+      process.env.HORIZON_ATLAS_API || ''
+    ].filter(Boolean),
+    pollMs: 750
+  });
+  horizonBridge.onState(syncHorizonState);
+  horizonBridge.start();
+  try {
+    globalShortcut.register('Control+Shift+H', () => {
+      const visible = Boolean(overlayWin && !overlayWin.isDestroyed() && !overlayWin.isVisible());
+      setOverlayVisible(visible, true);
+    });
+    console.log('Horizon overlay hotkey registered: Ctrl+Shift+H');
+  } catch (err) {
+    console.error('Horizon overlay hotkey registration failed', err);
+  }
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1440,
@@ -1326,6 +1410,17 @@ ipcMain.handle('open:path', (_, targetPath) => {
   return shell.openPath(targetPath);
 });
 
+ipcMain.handle('horizon:getGameState', () => horizonGameState);
+ipcMain.handle('horizon:refresh', async () => {
+  if (horizonBridge) await horizonBridge.refresh();
+  return horizonGameState;
+});
+ipcMain.handle('horizon:toggleOverlay', () => {
+  const visible = !(overlayWin && !overlayWin.isDestroyed() && overlayWin.isVisible());
+  return setOverlayVisible(visible, true);
+});
+ipcMain.handle('horizon:setOverlayVisible', (_, visible) => setOverlayVisible(Boolean(visible), true));
+
 ipcMain.handle('updater:status', () => updaterState);
 
 ipcMain.handle('updater:check', async () => {
@@ -1381,7 +1476,14 @@ app.whenReady().then(() => {
   initLogging();
   initDb();
   createWindow();
+  createOverlayWindow();
   configureUpdater();
+  configureHorizonBridge();
+});
+
+app.on('before-quit', () => {
+  try { globalShortcut.unregisterAll(); } catch {}
+  try { horizonBridge?.stop(); } catch {}
 });
 
 app.on('window-all-closed', () => {
