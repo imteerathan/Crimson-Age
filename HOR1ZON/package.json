@@ -9,7 +9,8 @@
     "test": "node --test",
     "check": "node --check src/main/index.js && node --check src/preload/index.js && node --check src/core/contracts/manifest.js && node --check src/core/events/event-bus.js && node --check src/services/settings/schema.js && node --check src/services/settings/store.js && node --check src/services/updater/state-machine.js && node --check src/services/updater/service.js && node --check src/adapters/atlas/handshake.js && node --check src/adapters/atlas/connection.js && node --check src/adapters/atlas/loader.js && node --check src/adapters/atlas/bridge.js",
     "build:dir": "electron-builder --win --x64 --dir --publish never",
-    "build:win": "electron-builder --win --x64 --publish never"
+    "build:win": "electron-builder --win --x64 --publish never",
+    "build:portable": "electron-builder --win --x64 --config.win.target=portable --publish never"
   },
   "devDependencies": {
     "electron": "^38.8.6",
@@ -37,12 +38,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "artifactName": "Crimson-Atlas-Horizon-${version}.${ext}"
@@ -51,6 +46,8 @@
       "artifactName": "Crimson-Atlas-Horizon-Setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "compression": "maximum",
+    "artifactName": "Crimson-Atlas-Horizon-${version}.${ext}"
   }
 }
