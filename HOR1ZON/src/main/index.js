@@ -6,6 +6,7 @@ const { UpdaterService } = require('../services/updater/service');
 const { EventBus } = require('../core/events/event-bus');
 const { validateManifest } = require('../core/contracts/manifest');
 const { AtlasConnection } = require('../adapters/atlas/connection');
+const { createLoader } = require('../adapters/atlas/loader');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -13,6 +14,7 @@ let settings;
 let updater;
 const events = new EventBus();
 const atlas = new AtlasConnection(manifest);
+const atlasLoader = createLoader({ manifest, onEvent: event => events.emit(event) });
 
 function sendUpdaterState(state) {
   events.emit({
@@ -48,8 +50,18 @@ function registerIpc() {
   ipcMain.handle('horizon:settings:reset', () => settings.reset());
 
   ipcMain.handle('horizon:host:status', () => atlas.getState());
+  ipcMain.handle('horizon:loader:status', () => atlasLoader.getState());
   ipcMain.handle('horizon:host:simulate-handshake', (_event, hostInfo, hostCapabilities) => {
-    return atlas.evaluate(hostInfo, hostCapabilities);
+    const state = atlas.evaluate(hostInfo, hostCapabilities);
+    if (state.connected) {
+      atlasLoader.load({
+        info: { name: hostInfo.name, version: hostInfo.version, protocol: hostInfo.protocol },
+        capabilities: hostCapabilities || []
+      });
+    } else {
+      atlasLoader.unload(state.reason || 'HOST_UNAVAILABLE');
+    }
+    return state;
   });
 
   ipcMain.handle('horizon:updater:get', () => updater.getState());
