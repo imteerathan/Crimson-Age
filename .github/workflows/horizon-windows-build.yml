@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: horizon-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows-build:
     runs-on: windows-latest
