@@ -50,9 +50,9 @@ class OverlayManager {
 
   getWindowSize() {
     const mode = String(this.config.mode || 'FULL').toUpperCase();
-    if (mode === 'COMPACT') return { width: 360, height: 120 };
-    if (mode === 'FOCUS') return { width: 620, height: 240 };
-    return { width: 520, height: 180 };
+    if (mode === 'COMPACT') return { width: 280, height: 84 };
+    if (mode === 'FOCUS') return { width: 420, height: 150 };
+    return { width: 360, height: 104 };
   }
 
   getDisplayArea(display) {
