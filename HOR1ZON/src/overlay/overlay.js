@@ -42,8 +42,8 @@ function positionFromDrag(event){
   const availableX=Math.max(1,area.width-window.outerWidth-16);
   const availableY=Math.max(1,area.height-window.outerHeight-16);
   return {
-    x:clamp(Number(start.x)+((event.clientX-drag.startX)/availableX),0,1),
-    y:clamp(Number(start.y)+((event.clientY-drag.startY)/availableY),0,1)
+    x:clamp(Number(start.x)+((event.screenX-drag.startX)/availableX),0,1),
+    y:clamp(Number(start.y)+((event.screenY-drag.startY)/availableY),0,1)
   };
 }
 
@@ -61,7 +61,7 @@ function enableDrag(){
   panel.addEventListener('pointerdown',event=>{
     const state=window.__overlayState||{};
     if(!state.editMode||event.button!==0) return;
-    drag={startX:event.clientX,startY:event.clientY,startPosition:{...(state.position||{x:1,y:0.03})},pointerId:event.pointerId};
+    drag={startX:event.screenX,startY:event.screenY,startPosition:{...(state.position||{x:1,y:0.03})},pointerId:event.pointerId};
     panel.setPointerCapture?.(event.pointerId);
     event.preventDefault();
     event.stopPropagation();
@@ -73,7 +73,7 @@ function enableDrag(){
   };
   const finish=event=>{
     if(!drag) return;
-    const position=positionFromDrag(event||{clientX:drag.startX,clientY:drag.startY});
+    const position=positionFromDrag(event||{screenX:drag.startX,screenY:drag.startY});
     if(saveTimer) clearTimeout(saveTimer);
     saveTimer=null;
     window.horizonOverlay?.savePosition?.(position);
