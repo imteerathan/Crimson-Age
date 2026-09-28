@@ -10,9 +10,7 @@ class OverlayManager {
     displayResolver = null
   }) {
     if (typeof BrowserWindowClass !== 'function') throw new TypeError('BrowserWindowClass is required');
-    if (!screenApi || typeof screenApi.getDisplayNearestPoint !== 'function') {
-      throw new TypeError('screenApi is required');
-    }
+    if (!screenApi || typeof screenApi.getDisplayNearestPoint !== 'function') throw new TypeError('screenApi is required');
     this.BrowserWindowClass = BrowserWindowClass;
     this.screen = screenApi;
     this.path = pathModule;
@@ -50,15 +48,27 @@ class OverlayManager {
     };
   }
 
+  getWindowSize() {
+    const mode = String(this.config.mode || 'FULL').toUpperCase();
+    if (mode === 'COMPACT') return { width: 360, height: 120 };
+    if (mode === 'FOCUS') return { width: 620, height: 240 };
+    return { width: 520, height: 180 };
+  }
+
+  getDisplayArea(display) {
+    return display?.workArea || display?.bounds || { x: 0, y: 0, width: 1280, height: 720 };
+  }
+
   ensureWindow() {
     if (this.window && !this.window.isDestroyed()) return this.window;
 
     this.windowReady = false;
+    const size = this.getWindowSize();
     this.window = new this.BrowserWindowClass({
       x: 0,
       y: 0,
-      width: 800,
-      height: 600,
+      width: size.width,
+      height: size.height,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -91,7 +101,7 @@ class OverlayManager {
     this.window.webContents.on('did-finish-load', () => {
       this.windowReady = true;
       this.pushState();
-      if (this.visible && (this.canShow() || this.data.notification)) this.revealWindow();
+      if (this.visible && (this.canShow() || this.editMode || this.data.notification)) this.revealWindow();
     });
 
     this.reposition();
@@ -116,20 +126,23 @@ class OverlayManager {
   reposition() {
     if (!this.window || this.window.isDestroyed()) return;
     const display = this.targetDisplay || this.displayResolver?.() || this.screen.getDisplayNearestPoint({ x: 0, y: 0 });
-    const area = display.workArea || display.bounds;
-    this.window.setBounds({
-      x: area.x,
-      y: area.y,
-      width: area.width,
-      height: area.height
-    });
+    const area = this.getDisplayArea(display);
+    const size = this.getWindowSize();
+    const spanX = Math.max(0, area.width - size.width - 16);
+    const spanY = Math.max(0, area.height - size.height - 16);
+    const x = Math.round(area.x + 8 + Math.max(0, Math.min(1, Number(this.config.position?.x ?? 1))) * spanX);
+    const y = Math.round(area.y + 8 + Math.max(0, Math.min(1, Number(this.config.position?.y ?? 0.03))) * spanY);
+    this.window.setBounds({ x, y, width: size.width, height: size.height });
   }
 
   setTargetDisplay(display) {
     if (!display || !display.bounds) return this.getState();
-    const changed = !this.targetDisplay || String(this.targetDisplay.id) !== String(display.id);
+    const oldArea = this.getDisplayArea(this.targetDisplay);
+    const newArea = this.getDisplayArea(display);
+    const changed = !this.targetDisplay || String(this.targetDisplay.id) !== String(display.id)
+      || oldArea.x !== newArea.x || oldArea.y !== newArea.y || oldArea.width !== newArea.width || oldArea.height !== newArea.height;
     this.targetDisplay = display;
-    if (changed) this.reposition();
+    if (changed || this.window) this.reposition();
     this.pushState();
     this.emitState('target-display-changed');
     return this.getState();
@@ -138,6 +151,7 @@ class OverlayManager {
   configure(config = {}) {
     this.config = { ...this.config, ...config, position: { ...this.config.position, ...(config.position || {}) } };
     if (!this.config.enabled && this.visible) this.hide();
+    if (this.window) this.reposition();
     this.pushState();
     return this.getState();
   }
@@ -149,7 +163,7 @@ class OverlayManager {
   }
 
   canShow() {
-    return this.config.enabled && !this.config.manualHide && !this.runtimeSuppressed;
+    return this.config.enabled && !this.config.manualHide && (!this.runtimeSuppressed || this.editMode);
   }
 
   setPosition(position = {}) {
@@ -158,22 +172,32 @@ class OverlayManager {
     if (!Number.isFinite(x) || !Number.isFinite(y)) throw new TypeError('Overlay position must contain numeric x/y');
     this.config.position = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
     this.onPositionChange(this.config.position);
+    if (this.window) this.reposition();
     this.pushState();
     return this.getState();
   }
 
   setRuntimeSuppressed(suppressed, reason = 'runtime') {
     this.runtimeSuppressed = Boolean(suppressed);
-    if (this.runtimeSuppressed) this.hide(reason);
-    else if (this.config.restoreAfterStableGameplay !== false) this.show(reason);
+    if (this.runtimeSuppressed && !this.editMode) this.hide(reason);
+    else if (!this.runtimeSuppressed && this.config.restoreAfterStableGameplay !== false) this.show(reason);
     else this.emitState(reason);
     return this.getState();
   }
 
   setEditMode(enabled) {
     this.editMode = Boolean(enabled);
-    if (this.editMode) this.show('edit-position');
-    this.applyInteractionMode();
+    if (this.editMode) {
+      this.ensureWindow();
+      this.visible = true;
+      this.reposition();
+      this.applyInteractionMode();
+      this.revealWindow();
+    } else if (this.runtimeSuppressed) {
+      this.hide('edit-position-disabled');
+    } else {
+      this.applyInteractionMode();
+    }
     this.pushState();
     this.emitState(this.editMode ? 'edit-position-enabled' : 'edit-position-disabled');
     return this.getState();
@@ -220,6 +244,7 @@ class OverlayManager {
   hide(reason = 'manual') {
     if (this.window && !this.window.isDestroyed()) this.window.hide();
     this.visible = false;
+    if (reason === 'manual' || reason === 'ipc-hide') this.editMode = false;
     this.emitState(reason);
     return this.getState();
   }
@@ -238,12 +263,17 @@ class OverlayManager {
   }
 
   getState() {
+    const display = this.targetDisplay ? {
+      id: this.targetDisplay.id,
+      bounds: this.targetDisplay.bounds,
+      workArea: this.targetDisplay.workArea || this.targetDisplay.bounds
+    } : null;
     return {
       visible: this.visible,
       editMode: this.editMode,
       runtimeSuppressed: this.runtimeSuppressed,
       ...this.config,
-      targetDisplay: this.targetDisplay ? { id: this.targetDisplay.id, bounds: this.targetDisplay.bounds } : null,
+      targetDisplay: display,
       data: { ...this.data }
     };
   }
