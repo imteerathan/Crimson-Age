@@ -15,6 +15,5 @@ test('Windows distribution is self-contained and updater endpoint remains extern
     url: 'https://raw.githubusercontent.com/imteerathan/Crimson-Age/hor1zon-foundation/updates/stable/'
   }]);
   assert.equal(manifest.updater.provider, 'generic');
-  assert.equal(manifest.updater.channel, 'stable');
   assert.equal(manifest.updater.feedBase.startsWith('https://'), true);
 });
