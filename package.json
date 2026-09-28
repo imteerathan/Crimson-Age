@@ -1,7 +1,7 @@
 {
-  "name": "crimson-age-desktop",
-  "version": "0.3.24",
-  "description": "Crimson Age Windows desktop companion",
+  "name": "crimson-atlas-horizon",
+  "version": "0.4.0",
+  "description": "Crimson Atlas Horizon desktop extension",
   "private": true,
   "main": "src/main.js",
   "scripts": {
@@ -21,8 +21,8 @@
     "electron-updater": "^6.6.2"
   },
   "build": {
-    "appId": "com.crimsonage.desktop",
-    "productName": "Crimson Age",
+    "appId": "com.crimsonatlas.horizon",
+    "productName": "Crimson Atlas Horizon",
     "directories": {
       "output": "dist"
     },
@@ -56,7 +56,8 @@
       "releaseType": "release"
     },
     "nsis": {
-      "artifactName": "Crimson-Age-Setup-${version}.${ext}"
-    }
+      "artifactName": "Crimson-Atlas-Horizon-Setup-${version}.${ext}"
+    },
+    "artifactName": "Crimson-Atlas-Horizon-${version}.${ext}"
   }
 }
