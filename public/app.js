@@ -7,6 +7,7 @@ let lastContainerAnalysis = null;
 let lastRawDiff = null;
 let correlationSearch = '';
 let updater = { status: 'IDLE', message: 'Updater ready', version: '' };
+let horizon = { phase: 'BOOTING', gameProcess: false, atlasService: false, atlasHttp: false, telemetry: 'OFFLINE', position: null, provider: null, lastUpdate: null, lastError: null, probes: [] };
 
 const app = document.querySelector('#app');
 const updateButton = document.querySelector('#update');
@@ -31,12 +32,72 @@ async function boot() {
     }
 
     updater = await window.crimsonAge.updaterStatus();
+    horizon = await window.crimsonAge.getHorizonGameState();
     bindUpdater();
     await render();
   } catch (err) {
     console.error('Crimson Age boot failed', err);
     app.innerHTML = `<div class="card"><h1>Crimson Age startup error</h1><p>${esc(err?.message || err)}</p></div>`;
   }
+}
+
+function horizonBadge(value) {
+  const map = {
+    CONNECTED: 'LIVE',
+    ATTACHING: 'ATTACHING',
+    GAME_RUNNING: 'GAME RUNNING',
+    GAME_NOT_RUNNING: 'GAME CLOSED',
+    NO_PROVIDER: 'NO TELEMETRY',
+    WAITING: 'WAITING FOR TELEMETRY',
+    CONNECTED_NO_POSITION: 'CONNECTED / NO POSITION',
+    OFFLINE: 'OFFLINE',
+    ERROR: 'ERROR'
+  };
+  return map[value] || value || 'UNKNOWN';
+}
+
+function renderHorizonDashboard() {
+  const p = horizon.position;
+  const fmt = v => Number.isFinite(Number(v)) ? Number(v).toFixed(2) : '—';
+  return `
+    <div class="card horizon-card">
+      <div class="section-title">Horizon Live Connection</div>
+      <div class="horizon-status-grid">
+        <div><span class="muted">Game</span><strong>${horizon.gameProcess ? 'RUNNING' : 'CLOSED'}</strong></div>
+        <div><span class="muted">Atlas Service</span><strong>${horizon.atlasService ? 'DETECTED' : 'NOT DETECTED'}</strong></div>
+        <div><span class="muted">Telemetry</span><strong>${horizonBadge(horizon.telemetry)}</strong></div>
+        <div><span class="muted">Phase</span><strong>${esc(horizon.phase)}</strong></div>
+      </div>
+      <div class="kv horizon-position">
+        <div>Provider</div><code>${esc(horizon.provider || '—')}</code>
+        <div>Realm</div><span>${esc(p?.realm || '—')}</span>
+        <div>X</div><span>${fmt(p?.x)}</span>
+        <div>Y</div><span>${fmt(p?.y)}</span>
+        <div>Z</div><span>${fmt(p?.z)}</span>
+        <div>Last Update</div><span>${esc(horizon.lastUpdate || '—')}</span>
+      </div>
+      <p class="muted">${esc(horizon.lastError || 'Game detection runs automatically. Live coordinates appear when a supported local telemetry provider is available.')}</p>
+      <button id="refreshHorizon">Refresh Connection</button>
+      <button id="toggleHorizonOverlay" style="margin-left:8px">Show / Hide Overlay</button>
+    </div>`;
+}
+
+function bindHorizon() {
+  window.crimsonAge.onHorizonGameState(async next => {
+    horizon = next;
+    await render();
+  });
+  const refreshButton = document.querySelector('#refreshHorizon');
+  if (refreshButton) refreshButton.onclick = async () => {
+    refreshButton.disabled = true;
+    try { horizon = await window.crimsonAge.refreshHorizonGameState(); await render(); }
+    catch (err) { alert(err?.message || String(err)); }
+    finally { const b = document.querySelector('#refreshHorizon'); if (b) b.disabled = false; }
+  };
+  const toggleButton = document.querySelector('#toggleHorizonOverlay');
+  if (toggleButton) toggleButton.onclick = async () => {
+    try { await window.crimsonAge.toggleHorizonOverlay(); } catch (err) { alert(err?.message || String(err)); }
+  };
 }
 
 function bindUpdater() {
@@ -142,6 +203,7 @@ async function render() {
     html = `
       <h1>Crimson Age Desktop</h1>
       <p class="muted">Windows-first · local field test · version ${esc(info.version)}</p>
+      ${renderHorizonDashboard()}
       ${updaterCard()}
       <div class="grid">
         <div class="card"><div class="muted">Current Phase</div><div class="big">D1</div></div>
@@ -233,6 +295,7 @@ async function render() {
 
   app.innerHTML = html;
 
+  if (view === 'home') bindHorizon();
   bindCorrelationSearch();
 
   document.querySelectorAll('select[data-i]').forEach(select => {
