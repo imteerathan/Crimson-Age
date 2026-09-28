@@ -87,7 +87,7 @@ function enableDrag(){
     panel.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   });
-  panel.addEventListener('pointermove',event=>{
+  const move=(event)=>{
     if(!drag) return;
     const maxLeft=Math.max(8,window.innerWidth-panel.offsetWidth-8);
     const maxTop=Math.max(8,window.innerHeight-panel.offsetHeight-8);
@@ -98,7 +98,7 @@ function enableDrag(){
     panel.style.right='auto';
     panel.style.transform='none';
     requestSavePosition();
-  });
+  };
   const finish=()=>{
     if(!drag) return;
     const maxLeft=Math.max(8,window.innerWidth-panel.offsetWidth-8);
@@ -111,8 +111,9 @@ function enableDrag(){
     savePositionNow();
     if(pointerId!=null) panel.releasePointerCapture?.(pointerId);
   };
-  panel.addEventListener('pointerup',finish);
-  panel.addEventListener('pointercancel',finish);
+  window.addEventListener('pointermove',move,true);
+  window.addEventListener('pointerup',finish,true);
+  window.addEventListener('pointercancel',finish,true);
 }
 
 window.addEventListener('DOMContentLoaded',()=>{
