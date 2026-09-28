@@ -36,8 +36,8 @@ async function boot() {
     bindUpdater();
     await render();
   } catch (err) {
-    console.error('Crimson Age boot failed', err);
-    app.innerHTML = `<div class="card"><h1>Crimson Age startup error</h1><p>${esc(err?.message || err)}</p></div>`;
+    console.error('Crimson Atlas Horizon boot failed', err);
+    app.innerHTML = `<div class="card"><h1>Crimson Atlas Horizon startup error</h1><p>${esc(err?.message || err)}</p></div>`;
   }
 }
 
@@ -109,13 +109,13 @@ function bindUpdater() {
 
       if (updater.status === 'UPDATE_AVAILABLE') {
         const availableVersion = updater.availableVersion ? `v${updater.availableVersion}` : 'unknown version';
-        if (confirm(`Crimson Age ${availableVersion} is available. Download now?`)) {
+        if (confirm(`Crimson Atlas Horizon ${availableVersion} is available. Download now?`)) {
           updater = await window.crimsonAge.downloadUpdate();
         }
       }
 
       if (updater.status === 'READY_TO_INSTALL') {
-        if (confirm('Update downloaded. Restart Crimson Age and install it now?')) {
+        if (confirm('Update downloaded. Restart Crimson Atlas Horizon and install it now?')) {
           await window.crimsonAge.installUpdate();
           return;
         }
@@ -201,8 +201,8 @@ async function render() {
 
   if (view === 'home') {
     html = `
-      <h1>Crimson Age Desktop</h1>
-      <p class="muted">Windows-first · local field test · version ${esc(info.version)}</p>
+      <h1>Crimson Atlas Horizon</h1>
+      <p class="muted">Windows · Crimson Atlas companion · version ${esc(info.version)}</p>
       ${renderHorizonDashboard()}
       ${updaterCard()}
       <div class="grid">
@@ -214,25 +214,25 @@ async function render() {
       <br>
       <div class="card">
         <h2>What Should I Do Now?</h2>
-        <p>Field-test the real Save, capture a baseline, make one controlled gameplay change, then capture the next baseline.</p>
+        <p>Start Crimson Desert with Atlas running. Horizon will detect the game automatically, then display connection and live telemetry state.</p>
       </div>`;
   } else if (view === 'playbook') {
     html = `
       <h1>Playbook</h1>
       <div class="list">
-        <div class="item">D1 · Desktop Foundation <b>IN PROGRESS</b></div>
-        <div class="item">D1.2 · Save Baseline <b>VERIFIED</b>
-        <div class="item">D1.4 · Save Baseline Diff <b>VERIFIED</b></div></div>
-        <div class="item">D1.3 · Binary Structure Analyzer <b>VERIFIED</b></div>
-        <div class="item">D1.5 · Save Container Decoder <b>VERIFIED</b></div>
-        <div class="item">D1.6 · Save Object Correlation <b>VERIFIED</b></div>
-        <div class="item">D1.7 · Safe Primitive Field Values <b>IN PROGRESS</b></div>
-        <div class="item">D2 · Crimson Age Core <b>PLANNED</b></div>
-        <div class="item">D3 · Local Database <b>PLANNED</b></div>
-        <div class="item">D4 · Real Map <b>PLANNED</b></div>
-        <div class="item">D5 · Save Analyzer <b>PLANNED</b></div>
-        <div class="item">D6 · Crimson Route Integration <b>PLANNED</b></div>
-        <div class="item">D7 · Real Gameplay Field Test <b>PLANNED</b></div>
+        <div class="item">HORIZON · Extension Foundation <b>IN PROGRESS</b></div>
+        <div class="item">ATLAS BRIDGE · Save evidence <b>VERIFIED</b>
+        <div class="item">ATLAS BRIDGE · Save diff <b>VERIFIED</b></div></div>
+        <div class="item">ATLAS BRIDGE · Binary analyzer <b>VERIFIED</b></div>
+        <div class="item">ATLAS BRIDGE · Container decoder <b>VERIFIED</b></div>
+        <div class="item">ATLAS BRIDGE · Object correlation <b>VERIFIED</b></div>
+        <div class="item">ATLAS BRIDGE · Safe field values <b>IN PROGRESS</b></div>
+        <div class="item">D2 · Crimson Atlas Horizon Core <b>PLANNED</b></div>
+        <div class="item">ATLAS DATA BRIDGE <b>PLANNED</b></div>
+        <div class="item">LIVE MAP <b>PLANNED</b></div>
+        <div class="item">COMPLETION EVIDENCE <b>PLANNED</b></div>
+        <div class="item">NAVIGATION BRIDGE <b>PLANNED</b></div>
+        <div class="item">OVERLAY <b>PLANNED</b></div>
       </div>`;
   } else if (view === 'map') {
     html = `
@@ -276,7 +276,7 @@ async function render() {
 
     html = `
       <h1>Save Analyzer</h1>
-      <p class="muted">Read-only baseline inspection. Crimson Age never writes to the selected game save.</p>
+      <p class="muted">Read-only baseline inspection. Crimson Atlas Horizon never writes to the selected game save.</p>
       <button id="pick">Select save file</button>
       ${lastBaseline ? '<button id="analyze" style="margin-left:8px">Analyze Binary Structure</button><button id="analyzeContainer" style="margin-left:8px">Decode SAVE Container</button>' : ''}
       <div id="picked" class="card" style="margin-top:14px">${lastBaseline ? renderBaseline(lastBaseline) : 'No new file selected in this session.'}</div>
