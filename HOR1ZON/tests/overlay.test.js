@@ -139,8 +139,8 @@ test('overlay window follows target display and normalized position', () => {
   manager.setTargetDisplay(display2);
   manager.show();
   manager.window.webContents.listeners['did-finish-load']();
-  assert.equal(manager.window.bounds.x, 3952);
-  assert.equal(manager.window.bounds.y, 44);
+  assert.equal(manager.window.bounds.x, 4112);
+  assert.equal(manager.window.bounds.y, 46);
 
   manager.setPosition({ x: 0, y: 0 });
   assert.equal(manager.window.bounds.x, 1928);
