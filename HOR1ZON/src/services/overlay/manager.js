@@ -5,7 +5,8 @@ class OverlayManager {
     pathModule,
     overlayHtmlPath,
     overlayPreloadPath,
-    onState = () => {}
+    onState = () => {},
+    onPositionChange = () => {}
   }) {
     if (typeof BrowserWindowClass !== 'function') throw new TypeError('BrowserWindowClass is required');
     if (!screenApi || typeof screenApi.getDisplayNearestPoint !== 'function') {
@@ -17,22 +18,31 @@ class OverlayManager {
     this.overlayHtmlPath = overlayHtmlPath;
     this.overlayPreloadPath = overlayPreloadPath;
     this.onState = onState;
+    this.onPositionChange = onPositionChange;
     this.window = null;
     this.visible = false;
+    this.editMode = false;
+    this.runtimeSuppressed = false;
+    this.notificationTimer = null;
     this.config = {
       enabled: true,
       mode: 'FULL',
       opacity: 0.92,
       manualHide: false,
       autoHideDuringCutscene: true,
-      restoreAfterStableGameplay: true
+      restoreAfterStableGameplay: true,
+      autoHideDuringGameUi: true,
+      position: { x: 1, y: 0.03 }
     };
     this.data = {
       version: null,
       host: 'Standalone',
       hostState: 'FALLBACK',
       updaterState: 'IDLE',
-      currentVersion: null
+      currentVersion: null,
+      runtimeState: 'GAMEPLAY',
+      runtimeReason: null,
+      notification: null
     };
   }
 
@@ -63,10 +73,12 @@ class OverlayManager {
     });
 
     this.window.setAlwaysOnTop(true, 'screen-saver');
-    this.window.setIgnoreMouseEvents(true, { forward: true });
+    this.applyInteractionMode();
     this.window.on('closed', () => {
+      if (this.notificationTimer) clearTimeout(this.notificationTimer);
       this.window = null;
       this.visible = false;
+      this.editMode = false;
       this.emitState();
     });
 
@@ -74,6 +86,12 @@ class OverlayManager {
     this.reposition();
     this.window.loadFile(this.overlayHtmlPath);
     return this.window;
+  }
+
+  applyInteractionMode() {
+    if (!this.window || this.window.isDestroyed()) return;
+    this.window.setIgnoreMouseEvents(!this.editMode, { forward: true });
+    if (typeof this.window.setFocusable === 'function') this.window.setFocusable(this.editMode);
   }
 
   reposition() {
@@ -94,7 +112,7 @@ class OverlayManager {
   }
 
   configure(config = {}) {
-    this.config = { ...this.config, ...config };
+    this.config = { ...this.config, ...config, position: { ...this.config.position, ...(config.position || {}) } };
     if (!this.config.enabled && this.visible) this.hide();
     this.pushState();
     return this.getState();
@@ -107,7 +125,57 @@ class OverlayManager {
   }
 
   canShow() {
-    return this.config.enabled && !this.config.manualHide;
+    return this.config.enabled && !this.config.manualHide && !this.runtimeSuppressed;
+  }
+
+  setPosition(position = {}) {
+    const x = Number(position.x);
+    const y = Number(position.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new TypeError('Overlay position must contain numeric x/y');
+    this.config.position = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+    this.onPositionChange(this.config.position);
+    this.pushState();
+    return this.getState();
+  }
+
+  setRuntimeSuppressed(suppressed, reason = 'runtime') {
+    this.runtimeSuppressed = Boolean(suppressed);
+    if (this.runtimeSuppressed) this.hide(reason);
+    else if (this.config.restoreAfterStableGameplay !== false) this.show(reason);
+    else this.emitState(reason);
+    return this.getState();
+  }
+
+  setEditMode(enabled) {
+    this.editMode = Boolean(enabled);
+    if (this.editMode) this.show('edit-position');
+    this.applyInteractionMode();
+    this.pushState();
+    this.emitState(this.editMode ? 'edit-position-enabled' : 'edit-position-disabled');
+    return this.getState();
+  }
+
+  notify(message, duration = 3000) {
+    const text = String(message || '').trim();
+    if (!text || this.config.manualHide || !this.config.enabled) return this.getState();
+    const wasVisible = this.visible;
+    const ms = Math.max(500, Number(duration) || 3000);
+    this.data.notification = { message: text, duration: ms, startedAt: new Date().toISOString() };
+    const window = this.ensureWindow();
+    this.reposition();
+    this.applyInteractionMode();
+    window.showInactive();
+    this.visible = true;
+    this.pushState();
+    this.emitState('notification');
+    if (this.notificationTimer) clearTimeout(this.notificationTimer);
+    this.notificationTimer = setTimeout(() => {
+      this.notificationTimer = null;
+      this.data.notification = null;
+      if (this.runtimeSuppressed || !wasVisible) this.hide('notification-expired');
+      else { this.pushState(); this.emitState('notification-expired'); }
+    }, ms);
+    return this.getState();
   }
 
   show(reason = 'manual') {
@@ -117,6 +185,7 @@ class OverlayManager {
     }
     const window = this.ensureWindow();
     this.reposition();
+    this.applyInteractionMode();
     window.showInactive();
     this.visible = true;
     this.pushState();
@@ -147,15 +216,19 @@ class OverlayManager {
   getState() {
     return {
       visible: this.visible,
+      editMode: this.editMode,
+      runtimeSuppressed: this.runtimeSuppressed,
       ...this.config,
       data: { ...this.data }
     };
   }
 
   destroy() {
+    if (this.notificationTimer) clearTimeout(this.notificationTimer);
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;
     this.visible = false;
+    this.editMode = false;
     this.emitState('destroy');
   }
 }
