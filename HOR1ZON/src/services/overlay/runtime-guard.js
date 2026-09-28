@@ -1,4 +1,4 @@
-const HIDDEN_STATES = new Set(['FULLSCREEN_UI', 'CUTSCENE', 'DIALOGUE']);
+const HIDDEN_STATES = new Set(['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'CUTSCENE', 'DIALOGUE']);
 
 class OverlayRuntimeGuard {
   constructor({ overlay, getSettings = () => ({}) }) {
@@ -24,7 +24,7 @@ class OverlayRuntimeGuard {
 
     const settings = this.getSettings().overlay || {};
     const cutsceneHide = settings.autoHideDuringCutscene !== false && state === 'CUTSCENE';
-    const gameUiHide = settings.autoHideDuringGameUi !== false && (state === 'FULLSCREEN_UI' || state === 'DIALOGUE');
+    const gameUiHide = settings.autoHideDuringGameUi !== false && ['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'DIALOGUE'].includes(state);
     const shouldHide = cutsceneHide || gameUiHide;
 
     if (shouldHide) {
