@@ -5,19 +5,45 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self';style-src 'self' 'unsafe-inline';script-src 'self'">
   <title>Horizon Extension</title>
   <style>
-    *{box-sizing:border-box}body{margin:0;background:#0b0d10;color:#e8edf2;font:14px/1.5 Segoe UI,Arial,sans-serif}header{padding:18px 24px;border-bottom:1px solid #20252c;display:flex;justify-content:space-between;align-items:center}main{padding:24px;max-width:1100px;margin:auto}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:#11151a;border:1px solid #242b34;border-radius:12px;padding:18px}.muted{color:#8d98a5}button{background:#181d24;color:#e8edf2;border:1px solid #2d3540;border-radius:8px;padding:9px 13px;cursor:pointer;margin-right:8px}button:disabled{opacity:.5;cursor:not-allowed}label{display:block;margin:10px 0}input{margin-right:8px}@media(max-width:760px){.grid{grid-template-columns:1fr}}
+    *{box-sizing:border-box}body{margin:0;background:#0b0d10;color:#e8edf2;font:14px/1.5 Segoe UI,Arial,sans-serif}button,select,input{font:inherit}button{background:#181d24;color:#e8edf2;border:1px solid #2d3540;border-radius:8px;padding:9px 13px;cursor:pointer}button:hover{background:#202733}button:disabled{opacity:.5;cursor:not-allowed}header{height:64px;padding:0 24px;border-bottom:1px solid #20252c;display:flex;align-items:center;justify-content:space-between}.brand{letter-spacing:.12em;font-weight:800}.version{color:#8d98a5;margin-left:10px}.shell{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 64px)}nav{padding:16px;border-right:1px solid #20252c}nav button{display:block;width:100%;text-align:left;margin-bottom:8px}main{padding:24px;max-width:1200px;width:100%;margin:0 auto}.view{display:none}.view.active{display:block}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:#11151a;border:1px solid #242b34;border-radius:12px;padding:18px}.muted{color:#8d98a5}.row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #1d232a}.row:last-child{border-bottom:0}.field{margin:14px 0}.field label{display:block;margin-bottom:6px;color:#aeb7c2}.field select,.field input[type="number"]{width:100%;background:#0f1318;color:#e8edf2;border:1px solid #303844;border-radius:8px;padding:9px}.check{display:flex;align-items:center;gap:8px;margin:10px 0}.bar{height:8px;border-radius:8px;background:#20262e;overflow:hidden;margin:10px 0}.bar span{display:block;height:100%;width:0;background:#6aa3d8}.pill{display:inline-block;border:1px solid #303844;border-radius:999px;padding:4px 8px;font-size:12px}.success{border-color:#315c45}.warn{border-color:#6a5830}.danger{border-color:#6b3838}.stack{display:grid;gap:10px}@media(max-width:860px){.shell{grid-template-columns:1fr}nav{border-right:0;border-bottom:1px solid #20252c;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}nav button{margin:0}main{padding:16px}.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-<header><div><strong>HOR1ZON</strong><span class="muted"> Horizon Extension · Foundation 0.1.0</span></div><div><button id="update">Check for Updates</button><button id="install" disabled>Restart & Install</button><button id="reset">Reset Settings</button></div></header>
-<main>
-  <div class="grid">
-    <section class="card"><h2>Host</h2><p id="host">Detecting…</p></section>
-    <section class="card"><h2>Updater</h2><p>Status: <strong id="updaterStatus">IDLE</strong></p><p class="muted" id="updaterMessage">Ready</p><p class="muted">Current build: <span id="version">—</span></p></section>
-    <section class="card"><h2>Overlay</h2><label><input type="checkbox" id="overlayEnabled"> Enabled</label><label><input type="checkbox" id="cutscene"> Hide during cutscenes</label><button id="save">Save Settings</button></section>
-    <section class="card"><h2>Settings</h2><p class="muted">Persistent per-user settings are stored outside the application bundle.</p></section>
-  </div>
-</main>
+<header><div><span class="brand">HOR1ZON</span><span class="version" id="headerVersion">Foundation</span></div><span class="pill" id="hostPill">FALLBACK</span></header>
+<div class="shell">
+  <nav>
+    <button data-page="dashboard">Dashboard</button>
+    <button data-page="settings">Settings</button>
+    <button data-page="integration">Integration</button>
+  </nav>
+  <main>
+    <section id="dashboard" class="view active">
+      <h1>Horizon Dashboard</h1>
+      <div class="grid">
+        <div class="card"><h2>Host</h2><div class="row"><span>Status</span><strong id="dashHost">Detecting…</strong></div><div class="row"><span>Capabilities</span><span id="dashCaps">—</span></div></div>
+        <div class="card"><h2>Updater</h2><div class="row"><span>Status</span><strong id="dashUpdate">—</strong></div><div class="row"><span>Version</span><span id="dashVersion">—</span></div><div class="bar"><span id="updateBar"></span></div><div class="stack"><button id="checkUpdate">Check for Updates</button><button id="installUpdate" disabled>Restart &amp; Install</button></div><p class="muted" id="updateMessage">Ready</p></div>
+      </div>
+    </section>
+
+    <section id="settings" class="view">
+      <h1>Settings</h1>
+      <div class="grid">
+        <div class="card"><h2>General</h2><div class="check"><input id="launchAtStartup" type="checkbox"><label for="launchAtStartup">Launch with Windows</label></div><div class="check"><input id="compactMode" type="checkbox"><label for="compactMode">Use compact interface</label></div><div class="field"><label for="language">Language</label><select id="language"><option value="auto">Automatic</option><option value="th">ไทย</option><option value="en">English</option></select></div></div>
+        <div class="card"><h2>Overlay</h2><div class="check"><input id="overlayEnabled" type="checkbox"><label for="overlayEnabled">Enable overlay</label></div><div class="check"><input id="autoHide" type="checkbox"><label for="autoHide">Hide during cutscenes / dialogue</label></div><div class="check"><input id="restore" type="checkbox"><label for="restore">Restore after stable gameplay</label></div><div class="field"><label for="overlayMode">Mode</label><select id="overlayMode"><option>FULL</option><option>COMPACT</option><option>FOCUS</option></select></div><div class="field"><label for="opacity">Opacity</label><input id="opacity" type="number" min="0.35" max="1" step="0.01"></div></div>
+        <div class="card"><h2>Integration</h2><div class="field"><label for="hostMode">Host mode</label><select id="hostMode"><option>AUTO</option><option>ATLAS</option><option>STANDALONE</option></select></div><div class="check"><input id="telemetry" type="checkbox"><label for="telemetry">Allow optional telemetry adapter</label></div><div class="check"><input id="reconnect" type="checkbox"><label for="reconnect">Reconnect automatically</label></div></div>
+        <div class="card"><h2>Updates &amp; Privacy</h2><div class="field"><label for="channel">Update channel</label><select id="channel"><option>stable</option><option>beta</option></select></div><div class="check"><input id="checkLaunch" type="checkbox"><label for="checkLaunch">Check for updates on launch</label></div><div class="field"><label for="retention">Diagnostic retention (days)</label><input id="retention" type="number" min="1" max="365" step="1"></div><button id="saveSettings">Save Settings</button><button id="resetSettings">Reset</button><p class="muted" id="settingsMessage"></p></div>
+      </div>
+    </section>
+
+    <section id="integration" class="view">
+      <h1>Atlas Connection</h1>
+      <div class="grid">
+        <div class="card"><h2>Connection Contract</h2><div class="row"><span>Protocol</span><span>atlas-extension / v1</span></div><div class="row"><span>State</span><strong id="connectionState">—</strong></div><div class="row"><span>Reason</span><span id="connectionReason">—</span></div><div class="row"><span>Negotiated</span><span id="connectionNegotiated">—</span></div><div class="row"><span>Fallback</span><span id="connectionFallback">—</span></div></div>
+        <div class="card"><h2>Current policy</h2><p class="muted">Horizon may operate independently. An unavailable or incompatible Atlas host must not disable local Settings or the updater.</p><button id="refreshHost">Refresh Host State</button></div>
+      </div>
+    </section>
+  </main>
+</div>
 <script src="renderer.js"></script>
 </body>
 </html>
