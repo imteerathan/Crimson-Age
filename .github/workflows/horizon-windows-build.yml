@@ -1,0 +1,59 @@
+name: HOR1ZON Windows Build
+
+on:
+  push:
+    branches:
+      - hor1zon-foundation
+    paths:
+      - 'HOR1ZON/**'
+      - '.github/workflows/horizon-windows-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: HOR1ZON
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: HOR1ZON/package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Package Windows artifacts
+        run: npm run build:win
+
+      - name: Verify package outputs
+        shell: powershell
+        run: |
+          $version = node -p "require('./package.json').version"
+          $nsis = "dist/Crimson-Atlas-Horizon-Setup-$version.exe"
+          $portable = "dist/Crimson-Atlas-Horizon-$version.exe"
+          if (!(Test-Path $nsis)) { throw "Missing NSIS artifact: $nsis" }
+          if (!(Test-Path $portable)) { throw "Missing portable artifact: $portable" }
+          Get-ChildItem dist | Select-Object Name,Length
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crimson-atlas-horizon-windows-${{ github.sha }}
+          path: HOR1ZON/dist/*
+          if-no-files-found: error
