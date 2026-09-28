@@ -150,11 +150,14 @@ class WindowDisplayTracker {
     this.running = false;
     this.present = false;
     this.missingCount = 0;
+    this.polling = false;
   }
 
   poll() {
+    if (this.polling) return;
+    this.polling = true;
     this.resolveWindow((error, windowInfo) => {
-      if (error) return;
+      if (error) { this.polling = false; return; }
       const tracked = shouldTrackWindow(windowInfo, { ownProcessNames: this.ownProcessNames, ownPids: this.ownPids, trackedProcessNames: this.trackedProcessNames });
       if (!tracked) {
         this.missingCount += 1;
@@ -163,6 +166,7 @@ class WindowDisplayTracker {
           this.lastTarget = null;
           this.onPresence(false, null);
         }
+        this.polling = false;
         return;
       }
       this.missingCount = 0;
@@ -172,11 +176,15 @@ class WindowDisplayTracker {
       }
       const center = { x: windowInfo.bounds.x + (windowInfo.bounds.width / 2), y: windowInfo.bounds.y + (windowInfo.bounds.height / 2) };
       const display = typeof this.screen.getDisplayNearestPoint === 'function' ? this.screen.getDisplayNearestPoint(center) : this.screen.getDisplayMatching(windowInfo.bounds);
-      if (!display) return;
+      if (!display) { this.polling = false; return; }
       const key = String(display.id);
-      if (this.lastTarget?.displayId === key && this.lastTarget?.window?.bounds?.x === windowInfo.bounds.x && this.lastTarget?.window?.bounds?.y === windowInfo.bounds.y) return;
+      if (this.lastTarget?.displayId === key && this.lastTarget?.window?.bounds?.x === windowInfo.bounds.x && this.lastTarget?.window?.bounds?.y === windowInfo.bounds.y) {
+        this.polling = false;
+        return;
+      }
       this.lastTarget = { displayId: key, display, window: windowInfo };
       this.onDisplay(display, windowInfo);
+      this.polling = false;
     });
   }
 
@@ -209,19 +217,24 @@ class GameInputUiDetector {
     this.timer = null;
     this.running = false;
     this.lastPressed = new Set();
+    this.polling = false;
   }
 
   poll() {
+    if (this.polling) return;
+    this.polling = true;
     this.resolveInput((error, info) => {
-      if (error || !info) return;
+      if (error || !info) { this.polling = false; return; }
       const tracked = this.trackedProcessNames.some(name => normalizeProcessName(name) === normalizeProcessName(info.processName));
       if (!tracked) {
         this.lastPressed.clear();
+        this.polling = false;
         return;
       }
       const pressed = new Set(Array.isArray(info.pressed) ? info.pressed : []);
       for (const input of pressed) if (!this.lastPressed.has(input)) this.onInput(input, info);
       this.lastPressed = pressed;
+      this.polling = false;
     });
   }
 
