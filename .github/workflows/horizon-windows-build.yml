@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: horizon-windows-${{ github.ref }}
@@ -53,9 +53,49 @@ jobs:
           if (!(Test-Path $nsis)) { throw "Missing NSIS artifact: $nsis" }
           Get-ChildItem dist | Select-Object Name,Length
 
+      - name: Prepare updater metadata
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = node -p "require('./package.json').version"
+          $tag = "horizon-v$version"
+          $nsis = "dist/Crimson-Atlas-Horizon-Setup-$version.exe"
+          $sha512Bytes = [System.Security.Cryptography.SHA512]::Create().ComputeHash([System.IO.File]::ReadAllBytes($nsis))
+          $sha512 = [Convert]::ToBase64String($sha512Bytes)
+          $size = (Get-Item $nsis).Length
+          $releaseDate = (Get-Date).ToUniversalTime().ToString("o")
+          $latest = @"
+version: $version
+files:
+  - url: https://github.com/imteerathan/Crimson-Age/releases/download/$tag/Crimson-Atlas-Horizon-Setup-$version.exe
+    sha512: $sha512
+    size: $size
+releaseDate: $releaseDate
+"@
+          Set-Content -Path dist/latest.yml -Value $latest -Encoding utf8
+          if (gh release view $tag --repo "${{ github.repository }}" *> $null) {
+            gh release upload $tag "$nsis#Crimson-Atlas-Horizon-Setup-$version.exe" "dist/latest.yml#latest.yml" --clobber --repo "${{ github.repository }}"
+          } else {
+            gh release create $tag "$nsis#Crimson-Atlas-Horizon-Setup-$version.exe" "dist/latest.yml#latest.yml" --title "Crimson Atlas Horizon v$version" --notes "Horizon Extension $version" --target "${{ github.sha }}" --repo "${{ github.repository }}"
+          }
+          New-Item -ItemType Directory -Force -Path ../updates/stable | Out-Null
+          Copy-Item dist/latest.yml ../updates/stable/latest.yml -Force
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ../updates/stable/latest.yml
+          if (git diff --cached --quiet) {
+            Write-Host "Stable feed unchanged."
+          } else {
+            git commit -m "chore(horizon): publish stable updater feed v$version"
+            git push origin HEAD:${{ github.ref_name }}
+          }
+
       - name: Upload Horizon Installer
         uses: actions/upload-artifact@v4
         with:
           name: crimson-atlas-horizon-installer-${{ github.sha }}
-          path: HOR1ZON/dist/Crimson-Atlas-Horizon-Setup-*.exe
+          path: |
+            HOR1ZON/dist/Crimson-Atlas-Horizon-Setup-*.exe
+            HOR1ZON/dist/latest.yml
           if-no-files-found: error
