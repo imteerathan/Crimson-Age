@@ -4,5 +4,6 @@ contextBridge.exposeInMainWorld('horizonOverlay', {
   onState: (callback) => {
     if (typeof callback !== 'function') throw new TypeError('callback must be a function');
     return ipcRenderer.on('horizon:overlay:state', (_event, state) => callback(state));
-  }
+  },
+  savePosition: (position) => ipcRenderer.invoke('horizon:overlay:set-position', position)
 });
