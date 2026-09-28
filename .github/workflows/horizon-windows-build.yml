@@ -74,11 +74,15 @@ jobs:
           releaseDate: $releaseDate
           "@
           Set-Content -Path dist/latest.yml -Value $latest -Encoding utf8
-          $existingTag = gh release list --limit 100 --json tagName --jq ".[] | select(.tagName == '$tag') | .tagName"
-          if ($existingTag -eq $tag) {
+          $releaseJson = gh release list --limit 100 --json tagName
+          if ($LASTEXITCODE -ne 0) { throw "Unable to query GitHub releases." }
+          $existingTag = @($releaseJson | ConvertFrom-Json | Where-Object { $_.tagName -eq $tag })
+          if ($existingTag.Count -gt 0) {
             gh release upload $tag "$nsis#Crimson-Atlas-Horizon-Setup-$version.exe" "dist/latest.yml#latest.yml" --clobber --repo "${{ github.repository }}"
+            if ($LASTEXITCODE -ne 0) { throw "Unable to upload release assets." }
           } else {
             gh release create $tag "$nsis#Crimson-Atlas-Horizon-Setup-$version.exe" "dist/latest.yml#latest.yml" --title "Crimson Atlas Horizon v$version" --notes "Horizon Extension $version" --target "${{ github.sha }}" --repo "${{ github.repository }}"
+            if ($LASTEXITCODE -ne 0) { throw "Unable to create GitHub release." }
           }
           New-Item -ItemType Directory -Force -Path ../updates/stable | Out-Null
           Copy-Item dist/latest.yml ../updates/stable/latest.yml -Force
