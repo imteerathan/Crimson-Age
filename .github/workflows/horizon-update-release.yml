@@ -1,0 +1,114 @@
+name: HOR1ZON Update Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Horizon version to release"
+        required: true
+        type: string
+      channel:
+        description: "Update channel"
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - beta
+  push:
+    paths:
+      - 'updates/PUBLISH-*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: HOR1ZON
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: HOR1ZON/package.json
+
+      - name: Resolve release inputs
+        id: release
+        shell: powershell
+        run: |
+          if ("${{ inputs.version }}" -ne "") {
+            $version = "${{ inputs.version }}"
+            $channel = "${{ inputs.channel }}"
+          } else {
+            $marker = Get-ChildItem ../updates/PUBLISH-* | Sort-Object Name | Select-Object -Last 1
+            if ($null -eq $marker) { throw "No Horizon publish marker found." }
+            $version = $marker.BaseName -replace '^PUBLISH-', ''
+            $channel = 'stable'
+          }
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') { throw "Invalid SemVer: $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Set release version
+        shell: powershell
+        run: npm pkg set version="${{ steps.release.outputs.version }}"
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build Horizon installer
+        run: npm run build:win
+
+      - name: Prepare update metadata
+        shell: powershell
+        run: |
+          $version = "${{ steps.release.outputs.version }}"
+          $channel = "${{ steps.release.outputs.channel }}"
+          $exe = "dist/Crimson-Atlas-Horizon-Setup-$version.exe"
+          if (!(Test-Path $exe)) { throw "Missing release artifact: $exe" }
+
+          $meta = node -e "const fs=require('fs'),crypto=require('crypto');const f=process.argv[1];const h=crypto.createHash('sha512').update(fs.readFileSync(f)).digest('base64');const s=fs.statSync(f).size;console.log(JSON.stringify({sha512:h,size:s}))" $exe | ConvertFrom-Json
+          $assetUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/horizon-v$version/Crimson-Atlas-Horizon-Setup-$version.exe"
+          $releaseDate = (Get-Date).ToUniversalTime().ToString("o")
+          @"
+          version: $version
+          files:
+            - url: $assetUrl
+              sha512: $($meta.sha512)
+              size: $($meta.size)
+          releaseDate: $releaseDate
+          "@ | Set-Content -Path "../updates/$channel/latest.yml" -Encoding utf8NoBOM
+
+      - name: Publish Horizon release
+        shell: powershell
+        env:
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          $version = "${{ steps.release.outputs.version }}"
+          $exe = "dist/Crimson-Atlas-Horizon-Setup-$version.exe"
+          gh release create "horizon-v$version" $exe --repo $env:GITHUB_REPOSITORY --title "Crimson Atlas Horizon v$version" --notes "Horizon Extension $version"
+
+      - name: Publish update feed metadata
+        shell: powershell
+        run: |
+          $channel = "${{ steps.release.outputs.channel }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "../updates/$channel/latest.yml"
+          git commit -m "chore(horizon): publish $channel feed v${{ steps.release.outputs.version }}" || exit 0
+          git push origin "HEAD:$env:GITHUB_REF_NAME"
