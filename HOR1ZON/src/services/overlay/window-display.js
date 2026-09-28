@@ -133,20 +133,24 @@ function createWindowsGlobalInputResolver(options = {}) {
   return callback => runPowerShell(command, options, callback);
 }
 
-function shouldTrackWindow(windowInfo, { ownProcessNames = [], ownPids = [], trackedProcessNames = [] } = {}) {
+function shouldTrackWindow(windowInfo, { ownProcessNames = [], ownPids = [], trackedProcessNames = [], titleHints = [], pathHints = [] } = {}) {
   if (!windowInfo || !windowInfo.bounds) return false;
   const processName = normalizeProcessName(windowInfo.processName);
   const title = String(windowInfo.title || '').toLowerCase();
+  const filePath = String(windowInfo.path || '').toLowerCase();
   if (ownPids.includes(Number(windowInfo.pid))) return false;
   if (ownProcessNames.some(name => processName === normalizeProcessName(name))) return false;
   if (title.includes('horizon overlay')) return false;
-  if (trackedProcessNames.length > 0 && !trackedProcessNames.some(name => processName === normalizeProcessName(name))) return false;
+  const processMatch = trackedProcessNames.length > 0 && trackedProcessNames.some(name => processName === normalizeProcessName(name));
+  const titleMatch = titleHints.some(hint => hint && title.includes(String(hint).toLowerCase()));
+  const pathMatch = pathHints.some(hint => hint && filePath.includes(String(hint).toLowerCase()));
+  if (trackedProcessNames.length > 0 && !(processMatch || titleMatch || pathMatch)) return false;
   if (windowInfo.bounds.width < 320 || windowInfo.bounds.height < 240) return false;
   return true;
 }
 
 class WindowDisplayTracker {
-  constructor({ resolveWindow, screenApi, onDisplay, onPresence = () => {}, ownProcessNames = [], ownPids = [], trackedProcessNames = [], intervalMs = 500, missingSamples = 3 } = {}) {
+  constructor({ resolveWindow, screenApi, onDisplay, onPresence = () => {}, ownProcessNames = [], ownPids = [], trackedProcessNames = [], titleHints = ['crimson desert'], pathHints = ['crimson desert'], intervalMs = 500, missingSamples = 3 } = {}) {
     if (typeof resolveWindow !== 'function') throw new TypeError('resolveWindow is required');
     if (!screenApi || (typeof screenApi.getDisplayNearestPoint !== 'function' && typeof screenApi.getDisplayMatching !== 'function')) throw new TypeError('screenApi display lookup is required');
     this.resolveWindow = resolveWindow;
@@ -156,8 +160,8 @@ class WindowDisplayTracker {
     this.ownProcessNames = ownProcessNames;
     this.ownPids = ownPids;
     this.trackedProcessNames = trackedProcessNames;
-    this.titleHints = ['crimson desert'];
-    this.pathHints = ['crimson desert'];
+    this.titleHints = titleHints;
+    this.pathHints = pathHints;
     this.intervalMs = intervalMs;
     this.missingSamples = missingSamples;
     this.timer = null;
@@ -173,7 +177,7 @@ class WindowDisplayTracker {
     this.polling = true;
     this.resolveWindow((error, windowInfo) => {
       if (error) { this.polling = false; return; }
-      const tracked = shouldTrackWindow(windowInfo, { ownProcessNames: this.ownProcessNames, ownPids: this.ownPids, trackedProcessNames: this.trackedProcessNames });
+      const tracked = shouldTrackWindow(windowInfo, { ownProcessNames: this.ownProcessNames, ownPids: this.ownPids, trackedProcessNames: this.trackedProcessNames, titleHints: this.titleHints, pathHints: this.pathHints });
       if (!tracked) {
         this.missingCount += 1;
         if (this.present && this.missingCount >= this.missingSamples) {
@@ -228,6 +232,8 @@ class GameInputUiDetector {
     this.resolveInput = resolveInput;
     this.onInput = onInput || (() => {});
     this.trackedProcessNames = trackedProcessNames;
+    this.titleHints = ['crimson desert'];
+    this.pathHints = ['crimson desert'];
     this.intervalMs = intervalMs;
     this.timer = null;
     this.running = false;
