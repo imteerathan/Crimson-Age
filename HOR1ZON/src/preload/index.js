@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('horizon', {
   checkForUpdates: () => ipcRenderer.invoke('horizon:updater:check'),
   downloadUpdate: () => ipcRenderer.invoke('horizon:updater:download'),
   installUpdate: () => ipcRenderer.invoke('horizon:updater:install'),
+  getOverlayState: () => ipcRenderer.invoke('horizon:overlay:get'),
+  showOverlay: () => ipcRenderer.invoke('horizon:overlay:show'),
+  hideOverlay: () => ipcRenderer.invoke('horizon:overlay:hide'),
+  toggleOverlay: () => ipcRenderer.invoke('horizon:overlay:toggle'),
   onUpdaterState: (callback) => {
     if (typeof callback !== 'function') throw new TypeError('callback must be a function');
     return ipcRenderer.on('horizon:updater:state', (_event, state) => callback(state));
