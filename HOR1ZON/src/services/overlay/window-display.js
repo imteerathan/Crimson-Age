@@ -183,7 +183,7 @@ function shouldTrackWindow(windowInfo, { ownProcessNames = [], ownPids = [], tra
 class WindowDisplayTracker {
   constructor({ resolveWindow, screenApi, onDisplay, ownProcessNames = [], ownPids = [], trackedProcessNames = [], intervalMs = 500 } = {}) {
     if (typeof resolveWindow !== 'function') throw new TypeError('resolveWindow is required');
-    if (!screenApi || typeof screenApi.getDisplayMatching !== 'function') throw new TypeError('screenApi.getDisplayMatching is required');
+    if (!screenApi || (typeof screenApi.getDisplayNearestPoint !== 'function' && typeof screenApi.getDisplayMatching !== 'function')) throw new TypeError('screenApi display lookup is required');
     this.resolveWindow = resolveWindow;
     this.screen = screenApi;
     this.onDisplay = onDisplay || (() => {});
@@ -203,7 +203,10 @@ class WindowDisplayTracker {
         ownPids: this.ownPids,
         trackedProcessNames: this.trackedProcessNames
       })) return;
-      const display = this.screen.getDisplayMatching(windowInfo.bounds);
+      const center = { x: windowInfo.bounds.x + (windowInfo.bounds.width / 2), y: windowInfo.bounds.y + (windowInfo.bounds.height / 2) };
+      const display = typeof this.screen.getDisplayNearestPoint === 'function'
+        ? this.screen.getDisplayNearestPoint(center)
+        : this.screen.getDisplayMatching(windowInfo.bounds);
       if (!display) return;
       const key = String(display.id);
       if (this.lastTarget?.displayId === key) return;
