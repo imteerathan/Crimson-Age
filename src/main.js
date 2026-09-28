@@ -57,7 +57,7 @@ function initLogging() {
 
   process.on('uncaughtException', err => write('UNCAUGHT_EXCEPTION', [err]));
   process.on('unhandledRejection', reason => write('UNHANDLED_REJECTION', [reason]));
-  console.log('Crimson Age session started', {
+  console.log('Crimson Atlas Horizon session started', {
     version: app.getVersion(),
     packaged: app.isPackaged,
     logFile
@@ -1338,7 +1338,7 @@ ipcMain.handle('save:exportData', async () => {
     exportFormat: 'crimson-age-field-test-v1',
     exportedAt: new Date().toISOString(),
     application: {
-      name: 'Crimson Age Desktop',
+      name: 'Crimson Atlas Horizon',
       version: app.getVersion(),
       packaged: app.isPackaged,
       platform: process.platform,
