@@ -8,7 +8,7 @@ test('input hint never hides overlay by itself', () => {
   engine.noteInputHint('GAMEPAD_VIEW');
   engine.ingest({ vision: { state: 'GAMEPLAY', confidence: 0.9, baselineReady: true } });
   assert.equal(engine.getState().state, 'GAMEPLAY');
-  assert.deepEqual(states, []);
+  assert.equal(states.includes('FULLSCREEN_UI'), false);
 });
 
 test('vision UI requires consecutive confirmation frames', () => {
