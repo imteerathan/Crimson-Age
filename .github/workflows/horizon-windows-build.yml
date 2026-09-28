@@ -66,13 +66,13 @@ jobs:
           $size = (Get-Item $nsis).Length
           $releaseDate = (Get-Date).ToUniversalTime().ToString("o")
           $latest = @"
-version: $version
-files:
-  - url: https://github.com/imteerathan/Crimson-Age/releases/download/$tag/Crimson-Atlas-Horizon-Setup-$version.exe
-    sha512: $sha512
-    size: $size
-releaseDate: $releaseDate
-"@
+          version: $version
+          files:
+            - url: https://github.com/imteerathan/Crimson-Age/releases/download/$tag/Crimson-Atlas-Horizon-Setup-$version.exe
+              sha512: $sha512
+              size: $size
+          releaseDate: $releaseDate
+          "@
           Set-Content -Path dist/latest.yml -Value $latest -Encoding utf8
           if (gh release view $tag --repo "${{ github.repository }}" *> $null) {
             gh release upload $tag "$nsis#Crimson-Atlas-Horizon-Setup-$version.exe" "dist/latest.yml#latest.yml" --clobber --repo "${{ github.repository }}"
@@ -90,7 +90,6 @@ releaseDate: $releaseDate
             git commit -m "chore(horizon): publish stable updater feed v$version"
             git push origin HEAD:${{ github.ref_name }}
           }
-
       - name: Upload Horizon Installer
         uses: actions/upload-artifact@v4
         with:
