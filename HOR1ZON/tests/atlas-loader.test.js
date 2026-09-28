@@ -33,3 +33,14 @@ test('loader rejects an incompatible protocol before loading', () => {
     /Unsupported host protocol/
   );
 });
+
+
+test('loader refuses an Atlas host below the manifest minimum version', () => {
+  const loader = createLoader({ manifest });
+  const state = loader.load({
+    info: { name: 'Crimson Atlas', version: '0.9.9', protocol: { name: PROTOCOL_NAME, version: PROTOCOL_VERSION } },
+    capabilities: manifest.capabilities
+  });
+  assert.equal(state.loaded, false);
+  assert.equal(state.reason, 'HOST_VERSION_UNSUPPORTED');
+});
