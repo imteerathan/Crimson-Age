@@ -31,7 +31,8 @@
   },
   "updater": {
     "strategy": "electron-updater",
-    "feed": "EXTERNAL_CONFIG_REQUIRED",
+    "provider": "generic",
+    "feedBase": "https://raw.githubusercontent.com/imteerathan/Crimson-Age/hor1zon-foundation/updates",
     "channel": "stable"
   }
 }
