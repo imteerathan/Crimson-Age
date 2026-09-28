@@ -50,6 +50,32 @@ function render(state){
 }
 
 let drag=null;
+let saveTimer=null;
+
+function calculateNormalizedPosition(){
+  const panel=$('panel');
+  if(!panel) return {x:0,y:0};
+  const maxLeft=Math.max(8,window.innerWidth-panel.offsetWidth-8);
+  const maxTop=Math.max(8,window.innerHeight-panel.offsetHeight-8);
+  const rect=panel.getBoundingClientRect();
+  return {
+    x:maxLeft>8?clamp((rect.left-8)/(maxLeft-8),0,1):0,
+    y:maxTop>8?clamp((rect.top-8)/(maxTop-8),0,1):0
+  };
+}
+
+function savePositionNow(){
+  if(!window.__overlayState?.editMode) return;
+  window.horizonOverlay?.savePosition?.(calculateNormalizedPosition());
+}
+
+function requestSavePosition(){
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    saveTimer=null;
+    savePositionNow();
+  },75);
+}
 
 function enableDrag(){
   const panel=$('panel');
@@ -59,6 +85,7 @@ function enableDrag(){
     const rect=panel.getBoundingClientRect();
     drag={startX:event.clientX,startY:event.clientY,left:rect.left,top:rect.top,pointerId:event.pointerId};
     panel.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
   });
   panel.addEventListener('pointermove',event=>{
     if(!drag) return;
@@ -70,6 +97,7 @@ function enableDrag(){
     panel.style.top=Math.round(top)+'px';
     panel.style.right='auto';
     panel.style.transform='none';
+    requestSavePosition();
   });
   const finish=()=>{
     if(!drag) return;
@@ -80,7 +108,7 @@ function enableDrag(){
     const y=maxTop>8?clamp((rect.top-8)/(maxTop-8),0,1):0;
     const pointerId=drag.pointerId;
     drag=null;
-    window.horizonOverlay?.savePosition?.({x,y});
+    savePositionNow();
     if(pointerId!=null) panel.releasePointerCapture?.(pointerId);
   };
   panel.addEventListener('pointerup',finish);
@@ -91,4 +119,5 @@ window.addEventListener('DOMContentLoaded',()=>{
   enableDrag();
   if(window.horizonOverlay?.onState) window.horizonOverlay.onState(render);
 });
+window.addEventListener('blur',savePositionNow);
 window.addEventListener('resize',()=>applyPosition(window.__overlayState||{}));
