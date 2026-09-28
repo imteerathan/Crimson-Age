@@ -37,6 +37,7 @@ function parseWindow(value) {
     pid: Number(value.pid),
     processName: String(value.processName || ''),
     title: String(value.title || ''),
+    path: String(value.path || ''),
     bounds
   };
 }
@@ -77,21 +78,34 @@ function createWindowsForegroundResolver(options = {}) {
 
 function createWindowsGameWindowResolver({
   processNames = ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping'],
+  titleHints = ['crimson desert'],
+  pathHints = ['crimson desert'],
   ...options
 } = {}) {
   const names = processNames.map(normalizeProcessName).filter(Boolean);
   const nameArray = names.map(name => "'" + name.replace(/'/g, "''") + "'").join(',');
+  const titleArray = titleHints.map(value => "'" + String(value).replace(/'/g, "''").toLowerCase() + "'").join(',');
+  const pathArray = pathHints.map(value => "'" + String(value).replace(/'/g, "''").toLowerCase() + "'").join(',');
   const command = [
     user32Prelude(),
     '$names=@(' + nameArray + ');',
+    '$titleHints=@(' + titleArray + ');',
+    '$pathHints=@(' + pathArray + ');',
     '$items=@(',
-    'Get-Process -ErrorAction SilentlyContinue | Where-Object { $names -contains $_.ProcessName.ToLower() } | ForEach-Object {',
-    '  if ($_.MainWindowHandle -eq 0) { return }',
+    'Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object {',
+    '  $pname=$_.ProcessName.ToLower();',
+    '  $title=[string]$_.MainWindowTitle; $titleLower=$title.ToLower();',
+    '  $path=""; try { $path=[string]$_.Path } catch {}',
+    '  $pathLower=$path.ToLower();',
+    '  $nameMatch=$names -contains $pname;',
+    '  $titleMatch=$false; foreach($hint in $titleHints){ if($hint -and $titleLower.Contains($hint)){ $titleMatch=$true; break } }',
+    '  $pathMatch=$false; foreach($hint in $pathHints){ if($hint -and $pathLower.Contains($hint)){ $pathMatch=$true; break } }',
+    '  if(-not ($nameMatch -or $titleMatch -or $pathMatch)){ return }',
     '  $r=New-Object HorizonUser32+RECT;',
-    '  if (-not [HorizonUser32]::GetWindowRect($_.MainWindowHandle,[ref]$r)) { return }',
+    '  if(-not [HorizonUser32]::GetWindowRect($_.MainWindowHandle,[ref]$r)){ return }',
     '  $w=$r.Right-$r.Left; $h=$r.Bottom-$r.Top;',
-    '  if ($w -le 0 -or $h -le 0) { return }',
-    '  [pscustomobject]@{ hwnd=$_.MainWindowHandle.ToInt64(); pid=$_.Id; processName=$_.ProcessName; title=$_.MainWindowTitle; left=$r.Left; top=$r.Top; right=$r.Right; bottom=$r.Bottom; area=($w*$h) }',
+    '  if($w -le 0 -or $h -le 0){ return }',
+    '  [pscustomobject]@{ hwnd=$_.MainWindowHandle.ToInt64(); pid=$_.Id; processName=$_.ProcessName; title=$title; path=$path; left=$r.Left; top=$r.Top; right=$r.Right; bottom=$r.Bottom; area=($w*$h) }',
     ' }',
     ');',
     '$items | Sort-Object area -Descending | Select-Object -First 1 | ConvertTo-Json -Compress'
@@ -112,10 +126,9 @@ function createWindowsGlobalInputResolver(options = {}) {
     '$p=Get-Process -Id $pid -ErrorAction SilentlyContinue;',
     '$pressed=@();',
     'if (([HorizonUser32]::GetAsyncKeyState(0x1B) -band 0x8000) -ne 0) { $pressed += "ESC" }',
-    'if (([HorizonUser32]::GetAsyncKeyState(0xCF) -band 0x8000) -ne 0) { $pressed += "GAMEPAD_MENU" }',
-    'if (([HorizonUser32]::GetAsyncKeyState(0xD0) -band 0x8000) -ne 0) { $pressed += "GAMEPAD_VIEW" }',
     'try { for($i=0;$i -lt 4;$i++){ $state=New-Object HorizonUser32+XINPUT_STATE; if([HorizonUser32]::XInputGetState([uint32]$i,[ref]$state) -eq 0){ if(($state.Gamepad.wButtons -band 0x0010) -ne 0){$pressed += "GAMEPAD_MENU"}; if(($state.Gamepad.wButtons -band 0x0020) -ne 0){$pressed += "GAMEPAD_VIEW"} } } } catch {}',
-    '[pscustomobject]@{ pid=$pid; processName=if($p){$p.ProcessName}else{""}; title=if($p){$p.MainWindowTitle}else{""}; pressed=@($pressed | Select-Object -Unique) } | ConvertTo-Json -Compress'
+    '$path=""; try { if($p){$path=[string]$p.Path} } catch {}',
+    '[pscustomobject]@{ pid=$pid; processName=if($p){$p.ProcessName}else{""}; title=if($p){$p.MainWindowTitle}else{""}; path=$path; pressed=@($pressed | Select-Object -Unique) } | ConvertTo-Json -Compress'
   ].join(' ');
   return callback => runPowerShell(command, options, callback);
 }
@@ -143,6 +156,8 @@ class WindowDisplayTracker {
     this.ownProcessNames = ownProcessNames;
     this.ownPids = ownPids;
     this.trackedProcessNames = trackedProcessNames;
+    this.titleHints = ['crimson desert'];
+    this.pathHints = ['crimson desert'];
     this.intervalMs = intervalMs;
     this.missingSamples = missingSamples;
     this.timer = null;
@@ -225,7 +240,10 @@ class GameInputUiDetector {
     this.polling = true;
     this.resolveInput((error, info) => {
       if (error || !info) { this.polling = false; return; }
-      const tracked = this.trackedProcessNames.some(name => normalizeProcessName(name) === normalizeProcessName(info.processName));
+      const processTracked = this.trackedProcessNames.some(name => normalizeProcessName(name) === normalizeProcessName(info.processName));
+      const titleTracked = this.titleHints.some(hint => String(info.title || '').toLowerCase().includes(hint));
+      const pathTracked = this.pathHints.some(hint => String(info.path || '').toLowerCase().includes(hint));
+      const tracked = processTracked || titleTracked || pathTracked;
       if (!tracked) {
         this.lastPressed.clear();
         this.polling = false;
