@@ -1,0 +1,36 @@
+name: HOR1ZON CI
+
+on:
+  push:
+    branches:
+      - hor1zon-foundation
+  pull_request:
+    paths:
+      - 'HOR1ZON/**'
+      - '.github/workflows/horizon-ci.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: HOR1ZON
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: HOR1ZON/package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
