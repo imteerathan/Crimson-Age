@@ -1,0 +1,15 @@
+{
+  "name": "horizon-extension",
+  "version": "0.1.0",
+  "description": "HOR1ZON Horizon Extension foundation",
+  "private": true,
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "check": "node --check src/main/index.js && node --check src/preload/index.js && node --check src/core/contracts/manifest.js && node --check src/core/events/event-bus.js && node --check src/services/settings/store.js && node --check src/services/updater/state-machine.js"
+  },
+  "devDependencies": {
+    "electron": "^38.8.6"
+  }
+}
