@@ -1,0 +1,28 @@
+{
+  "id": "crimson.horizon",
+  "name": "Horizon Extension",
+  "version": "0.1.0",
+  "host": {
+    "name": "Crimson Atlas",
+    "minVersion": "1.0.0"
+  },
+  "capabilities": [
+    "settings.v1",
+    "updater.v1",
+    "playbook.v1",
+    "checklist.v1",
+    "map.v1",
+    "overlay.v1",
+    "telemetry.v1"
+  ],
+  "permissions": {
+    "filesystem": "limited",
+    "gameSaveRead": true,
+    "gameSaveWrite": false,
+    "network": "updater-only"
+  },
+  "entry": {
+    "renderer": "src/renderer/index.html",
+    "service": "src/main/index.js"
+  }
+}
