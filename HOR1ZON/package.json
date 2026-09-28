@@ -48,6 +48,12 @@
       "allowToChangeInstallationDirectory": true
     },
     "compression": "maximum",
-    "artifactName": "Crimson-Atlas-Horizon-${version}.${ext}"
+    "artifactName": "Crimson-Atlas-Horizon-${version}.${ext}",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://raw.githubusercontent.com/imteerathan/Crimson-Age/hor1zon-foundation/updates/stable/"
+      }
+    ]
   }
 }
