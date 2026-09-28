@@ -11,5 +11,5 @@ test('Windows distribution is self-contained and updater endpoint remains extern
   assert.equal(packageJson.build.publish, undefined);
   assert.equal(manifest.updater.provider, 'generic');
   assert.equal(manifest.updater.channel, 'stable');
-  assert.match(manifest.updater.feedBase, /^https:\\/\\//);
+  assert.equal(manifest.updater.feedBase.startsWith('https://'), true);
 });
