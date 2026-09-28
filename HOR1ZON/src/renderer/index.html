@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self';style-src 'self' 'unsafe-inline';script-src 'self'">
+  <title>Horizon Extension</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#0b0d10;color:#e8edf2;font:14px/1.5 Segoe UI,Arial,sans-serif}header{padding:18px 24px;border-bottom:1px solid #20252c;display:flex;justify-content:space-between;align-items:center}main{padding:24px;max-width:1100px;margin:auto}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:#11151a;border:1px solid #242b34;border-radius:12px;padding:18px}.muted{color:#8d98a5}button{background:#181d24;color:#e8edf2;border:1px solid #2d3540;border-radius:8px;padding:9px 13px;cursor:pointer;margin-right:8px}label{display:block;margin:10px 0}input{margin-right:8px}@media(max-width:760px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header><div><strong>HOR1ZON</strong><span class="muted"> Horizon Extension · Foundation 0.1.0</span></div><button id="reset">Reset Settings</button></header>
+<main>
+  <div class="grid">
+    <section class="card"><h2>Host</h2><p id="host">Detecting…</p></section>
+    <section class="card"><h2>Updater</h2><p>Foundation state machine ready. Host updater integration comes next.</p><p class="muted">Current build: <span id="version">—</span></p></section>
+    <section class="card"><h2>Overlay</h2><label><input type="checkbox" id="overlayEnabled"> Enabled</label><label><input type="checkbox" id="cutscene"> Hide during cutscenes</label><button id="save">Save Settings</button></section>
+    <section class="card"><h2>Settings</h2><p class="muted">Persistent per-user settings are stored outside the application bundle.</p></section>
+  </div>
+</main>
+<script src="renderer.js"></script>
+</body>
+</html>
