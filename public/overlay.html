@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self';style-src 'self' 'unsafe-inline';script-src 'self'">
+  <title>Horizon Overlay</title>
+  <style>
+    html,body{margin:0;padding:0;background:transparent;font:13px/1.35 Segoe UI,Arial,sans-serif;color:#eef2f6}
+    .panel{margin:8px;padding:11px 13px;border:1px solid rgba(255,255,255,.16);border-radius:11px;background:rgba(10,13,17,.92);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .brand{font-weight:800;letter-spacing:.08em;font-size:12px}
+    .state{font-size:11px;padding:3px 7px;border-radius:999px;background:#1c242c}
+    .coords{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:9px}
+    .coord{padding:7px 8px;border-radius:8px;background:rgba(255,255,255,.05)}
+    .label{display:block;color:#8f9aa6;font-size:10px}
+    .value{font-weight:700}
+    .meta{margin-top:8px;color:#9ca6b0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="top">
+      <div class="brand">HORIZON</div>
+      <div id="state" class="state">BOOTING</div>
+    </div>
+    <div class="coords">
+      <div class="coord"><span class="label">X</span><span id="x" class="value">—</span></div>
+      <div class="coord"><span class="label">Y</span><span id="y" class="value">—</span></div>
+      <div class="coord"><span class="label">Z</span><span id="z" class="value">—</span></div>
+    </div>
+    <div id="meta" class="meta">Waiting for Crimson Desert…</div>
+  </div>
+  <script>
+    function setText(id, value){ const el=document.getElementById(id); if(el) el.textContent=value; }
+    function update(s){
+      setText('state', s?.phase || 'UNKNOWN');
+      setText('x', Number.isFinite(Number(s?.position?.x)) ? Number(s.position.x).toFixed(1) : '—');
+      setText('y', Number.isFinite(Number(s?.position?.y)) ? Number(s.position.y).toFixed(1) : '—');
+      setText('z', Number.isFinite(Number(s?.position?.z)) ? Number(s.position.z).toFixed(1) : '—');
+      const realm=s?.position?.realm ? ' · '+s.position.realm : '';
+      setText('meta', s?.gameProcess ? ((s?.telemetry || 'WAITING') + realm) : 'Crimson Desert not running');
+    }
+    if(window.crimsonAge?.getHorizonGameState){
+      window.crimsonAge.getHorizonGameState().then(update).catch(()=>{});
+      window.crimsonAge.onHorizonGameState(update);
+    }
+  </script>
+</body>
+</html>
