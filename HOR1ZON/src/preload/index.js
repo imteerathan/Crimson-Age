@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('horizon', {
   downloadUpdate: () => ipcRenderer.invoke('horizon:updater:download'),
   installUpdate: () => ipcRenderer.invoke('horizon:updater:install'),
   getOverlayState: () => ipcRenderer.invoke('horizon:overlay:get'),
+  getOverlayDetectionState: () => ipcRenderer.invoke('horizon:overlay:detection'),
   showOverlay: () => ipcRenderer.invoke('horizon:overlay:show'),
   hideOverlay: () => ipcRenderer.invoke('horizon:overlay:hide'),
   toggleOverlay: () => ipcRenderer.invoke('horizon:overlay:toggle'),
