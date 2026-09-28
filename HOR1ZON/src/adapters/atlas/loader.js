@@ -1,4 +1,5 @@
 const { validateManifest, negotiateCapabilities } = require('../../core/contracts/manifest');
+const { compareSemver } = require('./handshake');
 
 const PROTOCOL_NAME = 'atlas-extension';
 const PROTOCOL_VERSION = 1;
@@ -43,6 +44,11 @@ function createLoader({ manifest, onEvent = () => {} }) {
     }
 
     validateHostInfo(host.info);
+    if (compareSemver(host.info.version, manifest.host.minVersion) < 0) {
+      session = { ...session, loaded: false, reason: 'HOST_VERSION_UNSUPPORTED' };
+      emit('horizon.loader.fallback', { reason: session.reason });
+      return getState();
+    }
     const negotiated = negotiateCapabilities(manifest.capabilities, host.capabilities || []);
 
     session = {
