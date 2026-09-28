@@ -84,6 +84,7 @@ function renderUpdater(state) {
   $('#updateMessage').textContent = state.error || (state.availableVersion ? `Available: v${state.availableVersion}` : state.state === 'UNCONFIGURED' ? 'Update feed is not configured for this build.' : 'No update selected.');
   $('#updateBar').style.width = `${Math.max(0, Math.min(100, Number(state.progress || 0)))}%`;
   $('#checkUpdate').disabled = ['CHECKING','DOWNLOADING','INSTALLING','RESTARTING'].includes(state.state);
+  $('#downloadUpdate').disabled = state.state !== 'AVAILABLE';
   $('#installUpdate').disabled = state.state !== 'READY';
   $('#checkUpdate').textContent = state.state === 'DOWNLOADING' ? `Downloading ${state.progress || 0}%` : 'Check for Updates';
 }
@@ -120,6 +121,11 @@ async function boot() {
 
   $('#checkUpdate').onclick = async () => {
     updater = await window.horizon.checkForUpdates();
+    renderUpdater(updater);
+  };
+
+  $('#downloadUpdate').onclick = async () => {
+    updater = await window.horizon.downloadUpdate();
     renderUpdater(updater);
   };
 
