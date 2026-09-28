@@ -9,11 +9,12 @@ const STATES = Object.freeze([
   'RESTARTING',
   'UPDATED',
   'RECOVERY',
-  'ERROR'
+  'ERROR',
+  'UNCONFIGURED'
 ]);
 
 const TRANSITIONS = {
-  IDLE: new Set(['CHECKING']),
+  IDLE: new Set(['CHECKING', 'UNCONFIGURED']),
   CHECKING: new Set(['UP_TO_DATE', 'AVAILABLE', 'ERROR']),
   UP_TO_DATE: new Set(['CHECKING']),
   AVAILABLE: new Set(['DOWNLOADING', 'CHECKING', 'ERROR']),
@@ -23,12 +24,13 @@ const TRANSITIONS = {
   RESTARTING: new Set(['UPDATED', 'RECOVERY', 'ERROR']),
   UPDATED: new Set(['CHECKING']),
   RECOVERY: new Set(['CHECKING', 'ERROR']),
-  ERROR: new Set(['CHECKING', 'RECOVERY'])
+  ERROR: new Set(['CHECKING', 'RECOVERY']),
+  UNCONFIGURED: new Set(['CHECKING'])
 };
 
-function createUpdaterState(version) {
+function createUpdaterState(version, configured = true) {
   return {
-    state: 'IDLE',
+    state: configured ? 'IDLE' : 'UNCONFIGURED',
     currentVersion: version,
     availableVersion: null,
     progress: null,
