@@ -1,4 +1,4 @@
-const HIDDEN_STATES = new Set(['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'CUTSCENE', 'DIALOGUE', 'GAME_UI_HEURISTIC']);
+const HIDDEN_STATES = new Set(['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'CUTSCENE', 'DIALOGUE', 'INPUT_UI']);
 
 class OverlayRuntimeGuard {
   constructor({ overlay, getSettings = () => ({}) }) {
@@ -11,26 +11,21 @@ class OverlayRuntimeGuard {
   }
 
   getState() {
-    return {
-      state: this.state,
-      hiddenByRuntime: this.hiddenByRuntime,
-      stableSince: this.stableSince
-    };
+    return { state: this.state, hiddenByRuntime: this.hiddenByRuntime, stableSince: this.stableSince };
   }
 
   setState(nextState = 'UNKNOWN', meta = {}) {
     const state = String(nextState || 'UNKNOWN').toUpperCase();
     this.state = state;
-
     const settings = this.getSettings().overlay || {};
     const cutsceneHide = settings.autoHideDuringCutscene !== false && state === 'CUTSCENE';
-    const gameUiHide = settings.autoHideDuringGameUi !== false && ['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'DIALOGUE', 'GAME_UI_HEURISTIC'].includes(state);
+    const gameUiHide = settings.autoHideDuringGameUi !== false && HIDDEN_STATES.has(state) && state !== 'CUTSCENE';
     const shouldHide = cutsceneHide || gameUiHide;
 
     if (shouldHide) {
       this.hiddenByRuntime = true;
       this.stableSince = null;
-      this.overlay.setRuntimeSuppressed(true, `runtime-${state.toLowerCase()}`);
+      this.overlay.setRuntimeSuppressed(true, 'runtime-' + state.toLowerCase());
     } else if (state === 'GAMEPLAY') {
       if (this.hiddenByRuntime && settings.restoreAfterStableGameplay !== false) {
         this.hiddenByRuntime = false;
@@ -39,25 +34,17 @@ class OverlayRuntimeGuard {
       }
     }
 
-    this.overlay.setData({
-      runtimeState: state,
-      runtimeReason: meta.reason || null
-    });
-
+    this.overlay.setData({ runtimeState: state, runtimeReason: meta.reason || null });
     return this.getState();
   }
 
-  setFullScreenUi(active, reason = 'ui') {
-    return this.setState(active ? 'FULLSCREEN_UI' : 'GAMEPLAY', { reason });
+  setInputUi(active, reason = 'input') {
+    return this.setState(active ? 'INPUT_UI' : 'GAMEPLAY', { reason });
   }
 
-  setCutscene(active, reason = 'cutscene') {
-    return this.setState(active ? 'CUTSCENE' : 'GAMEPLAY', { reason });
-  }
-
-  setDialogue(active, reason = 'dialogue') {
-    return this.setState(active ? 'DIALOGUE' : 'GAMEPLAY', { reason });
-  }
+  setFullScreenUi(active, reason = 'ui') { return this.setState(active ? 'FULLSCREEN_UI' : 'GAMEPLAY', { reason }); }
+  setCutscene(active, reason = 'cutscene') { return this.setState(active ? 'CUTSCENE' : 'GAMEPLAY', { reason }); }
+  setDialogue(active, reason = 'dialogue') { return this.setState(active ? 'DIALOGUE' : 'GAMEPLAY', { reason }); }
 }
 
 module.exports = { OverlayRuntimeGuard, HIDDEN_STATES };
