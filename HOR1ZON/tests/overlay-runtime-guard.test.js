@@ -43,14 +43,14 @@ test('cutscene policy can be controlled independently from fullscreen UI', () =>
 });
 
 
-test('detected game UI heuristic also suppresses and gameplay restores', () => {
+test('explicit input UI state suppresses and gameplay restores', () => {
   const overlay = fakeOverlay();
   const guard = new OverlayRuntimeGuard({
     overlay,
     getSettings: () => ({ overlay: { autoHideDuringGameUi: true, autoHideDuringCutscene: true, restoreAfterStableGameplay: true } })
   });
-  guard.setState('GAME_UI_HEURISTIC', { reason: 'game-cursor-visible' });
+  guard.setInputUi(true, 'input-escape');
   assert.equal(overlay.state.runtimeSuppressed, true);
-  guard.setState('GAMEPLAY', { reason: 'game-cursor-hidden' });
+  guard.setInputUi(false, 'input-escape');
   assert.equal(overlay.state.runtimeSuppressed, false);
 });
