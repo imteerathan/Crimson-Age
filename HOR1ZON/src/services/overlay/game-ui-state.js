@@ -122,7 +122,7 @@ class GameUiStateEngine {
       vision?.confidence,
       normalizeConfidence(vision?.uiLikelihood, 0)
     );
-    const threshold = recentInputHint ? Math.max(0.62, this.minConfidence - 0.08) : this.minConfidence;
+    const threshold = this.minConfidence;
     if (visionState !== 'UNKNOWN' && visionConfidence >= threshold) {
       return {
         state: visionState,
