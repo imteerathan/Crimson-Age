@@ -28,7 +28,7 @@ const atlasLoader = createLoader({ manifest, onEvent: event => events.emit(event
 let overlay;
 let runtimeGuard;
 let displayTracker;
-let gameUiDetector;
+let gameInputDetector;
 
 function recordDiagnostic(event, payload) {
   if (diagnostics) diagnostics.record(event, payload);
@@ -93,7 +93,9 @@ function createOverlay() {
           runtimeGuard.setState('GAMEPLAY', { reason: 'game-session-started', window: windowInfo?.title || null });
           overlay.show('game-session-started');
         } else {
-          overlay.hide('game-closed');
+          gameInputDetector?.reset();
+          overlay.destroy();
+          recordDiagnostic('horizon.overlay.game-session-closed', { reason: 'game-process-ended' });
         }
       },
       screenApi: require('electron').screen,
@@ -129,7 +131,7 @@ function createOverlay() {
     });
     displayTracker.start();
 
-    gameUiDetector = new GameInputUiDetector({
+    gameInputDetector = new GameInputUiDetector({
       resolveInput: createWindowsGlobalInputResolver(),
       trackedProcessNames: ['CrimsonDesert', 'CrimsonDesert-Win64-Shipping'],
       onInput: (input, info) => {
@@ -139,7 +141,7 @@ function createOverlay() {
         recordDiagnostic('horizon.overlay.input-ui', { input, title: info?.title || null, state: runtimeGuard.getState().state });
       }
     });
-    gameUiDetector.start();
+    gameInputDetector.start();
   }
 }
   
@@ -291,7 +293,7 @@ const { globalShortcut } = require('electron');
 
 app.on('before-quit', () => {
   if (displayTracker) displayTracker.stop();
-  if (gameUiDetector) gameUiDetector.stop();
+  if (gameInputDetector) gameInputDetector.stop();
   if (overlay) overlay.destroy();
   globalShortcut.unregister('CommandOrControl+Shift+H');
   const timestamp = new Date().toISOString();
