@@ -14,7 +14,7 @@ function normalizeLegacySettings(state) {
   const next = clone(state);
   if (!next.overlay || typeof next.overlay !== 'object') next.overlay = {};
   if (!Number.isFinite(next.overlay.opacity)) next.overlay.opacity = DEFAULTS.overlay.opacity;
-  next.overlay.opacity = Math.max(0.1, Math.min(1, next.overlay.opacity));
+  next.overlay.opacity = Math.max(0.1, Math.min(0.9, next.overlay.opacity));
   if (typeof next.overlay.autoHideDuringGameUi !== 'boolean') next.overlay.autoHideDuringGameUi = true;
   if (!next.overlay.position || typeof next.overlay.position !== 'object') next.overlay.position = clone(DEFAULTS.overlay.position);
   if (!Number.isFinite(next.overlay.position.x)) next.overlay.position.x = DEFAULTS.overlay.position.x;
