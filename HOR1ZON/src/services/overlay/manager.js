@@ -4,6 +4,7 @@ class OverlayManager {
     screenApi,
     pathModule,
     overlayHtmlPath,
+    overlayPreloadPath,
     onState = () => {}
   }) {
     if (typeof BrowserWindowClass !== 'function') throw new TypeError('BrowserWindowClass is required');
@@ -14,6 +15,7 @@ class OverlayManager {
     this.screen = screenApi;
     this.path = pathModule;
     this.overlayHtmlPath = overlayHtmlPath;
+    this.overlayPreloadPath = overlayPreloadPath;
     this.onState = onState;
     this.window = null;
     this.visible = false;
@@ -55,7 +57,8 @@ class OverlayManager {
       hasShadow: false,
       webPreferences: {
         contextIsolation: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        preload: this.overlayPreloadPath
       }
     });
 
