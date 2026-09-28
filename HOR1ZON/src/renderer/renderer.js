@@ -77,6 +77,17 @@ function renderHost(state) {
   $('#connectionFallback').textContent = state.fallback?.join(', ') || 'None';
 }
 
+function renderOverlay(state) {
+  const value = state || {};
+  $('#overlayStatus').textContent = value.visible ? 'VISIBLE' : 'HIDDEN';
+  $('#overlayModeDash').textContent = value.mode || 'FULL';
+}
+
+async function refreshOverlay() {
+  const state = await window.horizon.getOverlayState();
+  renderOverlay(state);
+}
+
 function renderUpdater(state) {
   updater = state;
   $('#dashUpdate').textContent = state.state;
@@ -101,6 +112,7 @@ async function boot() {
   fillSettings(settings);
   renderHost(host);
   renderUpdater(updater);
+  await refreshOverlay();
   await renderRuntimeState();
 
   $('#saveSettings').onclick = async () => {
@@ -132,6 +144,10 @@ async function boot() {
   $('#installUpdate').onclick = async () => {
     await window.horizon.installUpdate();
   };
+
+  $('#showOverlay').onclick = async () => renderOverlay(await window.horizon.showOverlay());
+  $('#hideOverlay').onclick = async () => renderOverlay(await window.horizon.hideOverlay());
+  $('#toggleOverlay').onclick = async () => renderOverlay(await window.horizon.toggleOverlay());
 
   $('#refreshHost').onclick = async () => {
     host = await window.horizon.getHostStatus();
