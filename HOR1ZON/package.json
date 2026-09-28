@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "check": "node --check src/main/index.js && node --check src/preload/index.js && node --check src/core/contracts/manifest.js && node --check src/core/events/event-bus.js && node --check src/services/settings/schema.js && node --check src/services/settings/store.js && node --check src/services/updater/state-machine.js && node --check src/services/updater/service.js && node --check src/adapters/atlas/handshake.js && node --check src/adapters/atlas/connection.js",
+    "check": "node --check src/main/index.js && node --check src/preload/index.js && node --check src/core/contracts/manifest.js && node --check src/core/events/event-bus.js && node --check src/services/settings/schema.js && node --check src/services/settings/store.js && node --check src/services/updater/state-machine.js && node --check src/services/updater/service.js && node --check src/adapters/atlas/handshake.js && node --check src/adapters/atlas/connection.js && node --check src/adapters/atlas/loader.js",
     "build:dir": "electron-builder --win --x64 --dir --publish never",
     "build:win": "electron-builder --win --x64 --publish never"
   },
