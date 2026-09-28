@@ -20,7 +20,7 @@
     <section id="dashboard" class="view active">
       <h1>Horizon Dashboard</h1>
       <div class="grid">
-        <div class="card"><h2>Host</h2><div class="row"><span>Status</span><strong id="dashHost">Detecting…</strong></div><div class="row"><span>Capabilities</span><span id="dashCaps">—</span></div></div>
+        <div class="card"><h2>Host</h2><div class="row"><span>Status</span><strong id="dashHost">Detecting…</strong></div><div class="row"><span>Capabilities</span><span id="dashCaps">—</span></div><div class="row"><span>Launches</span><span id="launchCount">—</span></div><div class="row"><span>Last started</span><span id="lastStarted">—</span></div></div>
         <div class="card"><h2>Updater</h2><div class="row"><span>Status</span><strong id="dashUpdate">—</strong></div><div class="row"><span>Version</span><span id="dashVersion">—</span></div><div class="bar"><span id="updateBar"></span></div><div class="stack"><button id="checkUpdate">Check for Updates</button><button id="installUpdate" disabled>Restart &amp; Install</button></div><p class="muted" id="updateMessage">Ready</p></div>
       </div>
     </section>
@@ -39,7 +39,7 @@
       <h1>Atlas Connection</h1>
       <div class="grid">
         <div class="card"><h2>Connection Contract</h2><div class="row"><span>Protocol</span><span>atlas-extension / v1</span></div><div class="row"><span>State</span><strong id="connectionState">—</strong></div><div class="row"><span>Loader</span><strong id="loaderState">—</strong></div><div class="row"><span>Reason</span><span id="connectionReason">—</span></div><div class="row"><span>Negotiated</span><span id="connectionNegotiated">—</span></div><div class="row"><span>Fallback</span><span id="connectionFallback">—</span></div></div>
-        <div class="card"><h2>Current policy</h2><p class="muted">Horizon may operate independently. An unavailable or incompatible Atlas host must not disable local Settings or the updater.</p><button id="refreshHost">Refresh Host State</button></div>
+        <div class="card"><h2>Current policy</h2><p class="muted">Horizon may operate independently. An unavailable or incompatible Atlas host must not disable local Settings or the updater.</p><button id="refreshHost">Refresh Host State</button><div class="field"><label for="diagnostics">Recent diagnostics</label><pre id="diagnostics" style="max-height:260px;overflow:auto;white-space:pre-wrap;background:#0f1318;padding:10px;border:1px solid #303844;border-radius:8px">—</pre></div></div>
       </div>
     </section>
   </main>
