@@ -17,9 +17,13 @@ function validateSettings(settings) {
   assert(settings.overlay && typeof settings.overlay === 'object', 'overlay settings are required');
   assert(typeof settings.overlay.enabled === 'boolean', 'overlay.enabled must be boolean');
   assert(ALLOWED_MODES.has(settings.overlay.mode), 'overlay.mode is invalid');
-  assert(Number.isFinite(settings.overlay.opacity) && settings.overlay.opacity >= 0.35 && settings.overlay.opacity <= 1, 'overlay.opacity must be between 0.35 and 1');
+  assert(Number.isFinite(settings.overlay.opacity) && settings.overlay.opacity >= 0.1 && settings.overlay.opacity <= 1, 'overlay.opacity must be between 0.1 and 1');
   assert(typeof settings.overlay.manualHide === 'boolean', 'overlay.manualHide must be boolean');
   assert(typeof settings.overlay.autoHideDuringCutscene === 'boolean', 'overlay.autoHideDuringCutscene must be boolean');
+  assert(typeof settings.overlay.autoHideDuringGameUi === 'boolean', 'overlay.autoHideDuringGameUi must be boolean');
+  assert(settings.overlay.position && typeof settings.overlay.position === 'object', 'overlay.position is required');
+  assert(Number.isFinite(settings.overlay.position.x) && settings.overlay.position.x >= 0 && settings.overlay.position.x <= 1, 'overlay.position.x must be between 0 and 1');
+  assert(Number.isFinite(settings.overlay.position.y) && settings.overlay.position.y >= 0 && settings.overlay.position.y <= 1, 'overlay.position.y must be between 0 and 1');
   assert(typeof settings.overlay.restoreAfterStableGameplay === 'boolean', 'overlay.restoreAfterStableGameplay must be boolean');
 
   assert(settings.integration && typeof settings.integration === 'object', 'integration settings are required');
