@@ -1,4 +1,4 @@
-const HIDDEN_STATES = new Set(['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'CUTSCENE', 'DIALOGUE', 'INPUT_UI']);
+const HIDDEN_STATES = new Set(['FULLSCREEN_UI', 'MENU', 'INVENTORY', 'SKILL', 'STORAGE', 'MAP', 'JOURNAL', 'PHOTO_MODE', 'CUTSCENE', 'DIALOGUE', 'INPUT_UI']);
 
 class OverlayRuntimeGuard {
   constructor({ overlay, getSettings = () => ({}) }) {
