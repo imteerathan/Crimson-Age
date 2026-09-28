@@ -1,13 +1,21 @@
 const { createUpdaterState, transition } = require('./state-machine');
 
 class UpdaterService {
-  constructor({ updater, version, isPackaged = true, now = () => new Date().toISOString(), emit = () => {} }) {
+  constructor({
+    updater,
+    version,
+    isPackaged = true,
+    configured = true,
+    now = () => new Date().toISOString(),
+    emit = () => {}
+  }) {
     if (!updater || typeof updater.on !== 'function') throw new TypeError('updater must be an EventEmitter-compatible object');
     this.updater = updater;
     this.isPackaged = isPackaged;
+    this.configured = configured;
     this.now = now;
     this.emit = emit;
-    this.state = createUpdaterState(version);
+    this.state = createUpdaterState(version, configured);
     this.bindEvents();
   }
 
@@ -120,6 +128,13 @@ class UpdaterService {
       this.emit(this.getState());
       return this.getState();
     }
+
+    if (!this.configured) {
+      this.state = { ...this.state, state: 'UNCONFIGURED', error: null, checkedAt: this.now() };
+      this.emit(this.getState());
+      return this.getState();
+    }
+
     if (this.state.state === 'CHECKING') return this.getState();
     if (this.state.state === 'AVAILABLE' || this.state.state === 'READY') {
       this.patch({ checkedAt: this.now(), error: null });
@@ -137,7 +152,7 @@ class UpdaterService {
   }
 
   async download() {
-    if (!this.isPackaged) return this.getState();
+    if (!this.isPackaged || !this.configured) return this.getState();
     if (this.state.state === 'DOWNLOADING') return this.getState();
     if (this.state.state !== 'AVAILABLE') throw new Error('No update is currently available for download');
     this.safePublish('DOWNLOADING', { progress: 0, error: null });
@@ -151,7 +166,7 @@ class UpdaterService {
   }
 
   install() {
-    if (!this.isPackaged) return false;
+    if (!this.isPackaged || !this.configured) return false;
     if (this.state.state !== 'READY') throw new Error('No downloaded update is ready to install');
     this.safePublish('INSTALLING', { error: null });
     this.safePublish('RESTARTING');
