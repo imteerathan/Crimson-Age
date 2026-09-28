@@ -986,7 +986,9 @@ function syncHorizonState(next) {
   if (win && !win.isDestroyed()) win.webContents.send('horizon:game-state', horizonGameState);
   if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('horizon:game-state', horizonGameState);
   console.log('Horizon game state', horizonGameState);
-  if (horizonGameState.gameProcess && !overlayManualHidden && horizonGameState.phase === 'CONNECTED') {
+  if (!horizonGameState.gameProcess) {
+    setOverlayVisible(false, false);
+  } else if (horizonGameState.gameProcess && !overlayManualHidden && horizonGameState.phase === 'CONNECTED') {
     setOverlayVisible(true, false);
   }
 }
