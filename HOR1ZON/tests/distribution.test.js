@@ -8,6 +8,8 @@ test('Windows distribution is self-contained and updater endpoint remains extern
   assert.equal(packageJson.build.productName, 'Crimson Atlas Horizon');
   assert.deepEqual(packageJson.build.win.target.map(target => target.target), ['nsis']);
   assert.equal(packageJson.build.directories.output, 'dist');
+  assert.equal(packageJson.version, '0.1.1');
+  assert.equal(manifest.version, packageJson.version);
   assert.deepEqual(packageJson.build.publish, [{
     provider: 'generic',
     url: 'https://raw.githubusercontent.com/imteerathan/Crimson-Age/hor1zon-foundation/updates/stable/'

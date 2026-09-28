@@ -49,6 +49,9 @@ test('overlay remains hidden until explicitly shown', () => {
   assert.equal(manager.getState().visible, false);
   manager.show();
   assert.equal(manager.getState().visible, true);
+  assert.equal(manager.window.visible, false);
+  manager.window.webContents.listeners['did-finish-load']();
+  assert.equal(manager.window.visible, true);
   manager.hide();
   assert.equal(manager.getState().visible, false);
 });

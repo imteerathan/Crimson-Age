@@ -23,6 +23,7 @@ class OverlayManager {
     this.displayResolver = displayResolver;
     this.targetDisplay = null;
     this.window = null;
+    this.windowReady = false;
     this.visible = false;
     this.editMode = false;
     this.runtimeSuppressed = false;
@@ -30,7 +31,7 @@ class OverlayManager {
     this.config = {
       enabled: true,
       mode: 'FULL',
-      opacity: 0.92,
+      opacity: 0.82,
       manualHide: false,
       autoHideDuringCutscene: true,
       restoreAfterStableGameplay: true,
@@ -52,6 +53,7 @@ class OverlayManager {
   ensureWindow() {
     if (this.window && !this.window.isDestroyed()) return this.window;
 
+    this.windowReady = false;
     this.window = new this.BrowserWindowClass({
       x: 0,
       y: 0,
@@ -80,15 +82,29 @@ class OverlayManager {
     this.window.on('closed', () => {
       if (this.notificationTimer) clearTimeout(this.notificationTimer);
       this.window = null;
+      this.windowReady = false;
       this.visible = false;
       this.editMode = false;
       this.emitState();
     });
 
-    this.window.webContents.on('did-finish-load', () => this.pushState());
+    this.window.webContents.on('did-finish-load', () => {
+      this.windowReady = true;
+      this.pushState();
+      if (this.visible && (this.canShow() || this.data.notification)) this.revealWindow();
+    });
+
     this.reposition();
     this.window.loadFile(this.overlayHtmlPath);
     return this.window;
+  }
+
+  revealWindow() {
+    if (!this.window || this.window.isDestroyed() || !this.windowReady) return false;
+    this.reposition();
+    this.applyInteractionMode();
+    this.window.showInactive();
+    return true;
   }
 
   applyInteractionMode() {
@@ -101,13 +117,11 @@ class OverlayManager {
     if (!this.window || this.window.isDestroyed()) return;
     const display = this.targetDisplay || this.displayResolver?.() || this.screen.getDisplayNearestPoint({ x: 0, y: 0 });
     const area = display.workArea || display.bounds;
-    const width = area.width;
-    const height = area.height;
     this.window.setBounds({
       x: area.x,
       y: area.y,
-      width,
-      height
+      width: area.width,
+      height: area.height
     });
   }
 
@@ -171,11 +185,11 @@ class OverlayManager {
     const wasVisible = this.visible;
     const ms = Math.max(500, Number(duration) || 3000);
     this.data.notification = { message: text, duration: ms, startedAt: new Date().toISOString() };
-    const window = this.ensureWindow();
+    this.ensureWindow();
+    this.visible = true;
     this.reposition();
     this.applyInteractionMode();
-    window.showInactive();
-    this.visible = true;
+    this.revealWindow();
     this.pushState();
     this.emitState('notification');
     if (this.notificationTimer) clearTimeout(this.notificationTimer);
@@ -193,11 +207,11 @@ class OverlayManager {
       this.emitState(reason);
       return this.getState();
     }
-    const window = this.ensureWindow();
+    this.ensureWindow();
+    this.visible = true;
     this.reposition();
     this.applyInteractionMode();
-    window.showInactive();
-    this.visible = true;
+    this.revealWindow();
     this.pushState();
     this.emitState(reason);
     return this.getState();
@@ -238,6 +252,7 @@ class OverlayManager {
     if (this.notificationTimer) clearTimeout(this.notificationTimer);
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
     this.window = null;
+    this.windowReady = false;
     this.visible = false;
     this.editMode = false;
     this.emitState('destroy');

@@ -42,3 +42,23 @@ test('tracker ignores resolver errors', () => {
   assert.doesNotThrow(() => tracker.poll());
   assert.equal(tracker.getState().displayId, null);
 });
+
+
+test('display tracker can restrict tracking to Crimson Desert process', () => {
+  const display = { id: 2, bounds: { x: 1920, y: 0, width: 1920, height: 1080 } };
+  let calls = 0;
+  const tracker = new WindowDisplayTracker({
+    resolveWindow: cb => cb(null, {
+      pid: 200,
+      processName: 'SomeOtherGame',
+      title: 'Other Game',
+      bounds: { x: 1920, y: 0, width: 1920, height: 1080 }
+    }),
+    screenApi: { getDisplayMatching: () => display },
+    onDisplay: () => { calls += 1; },
+    trackedProcessNames: ['CrimsonDesert']
+  });
+  tracker.poll();
+  assert.equal(calls, 0);
+  assert.equal(tracker.getState().displayId, null);
+});

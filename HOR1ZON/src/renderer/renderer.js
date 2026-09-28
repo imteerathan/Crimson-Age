@@ -113,7 +113,7 @@ async function boot() {
   host = await window.horizon.getHostStatus();
   updater = await window.horizon.getUpdaterState();
 
-  $('#headerVersion').textContent = `v${manifest.version}`;
+  $('#headerVersion').textContent = `v${updater.currentVersion || manifest.version}`;
   fillSettings(settings);
   $('#opacity').addEventListener('input', () => { $('#opacityValue').textContent = `${Math.round(Number($('#opacity').value) * 100)}%`; });
   renderHost(host);

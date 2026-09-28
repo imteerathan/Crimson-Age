@@ -66,19 +66,20 @@ function createWindowsForegroundResolver({
   };
 }
 
-function shouldTrackWindow(windowInfo, { ownProcessNames = [], ownPids = [] } = {}) {
-  if (!windowInfo) return false;
+function shouldTrackWindow(windowInfo, { ownProcessNames = [], ownPids = [], trackedProcessNames = [] } = {}) {
+  if (!windowInfo || !windowInfo.bounds) return false;
   const processName = String(windowInfo.processName || '').toLowerCase();
   const title = String(windowInfo.title || '').toLowerCase();
   if (ownPids.includes(Number(windowInfo.pid))) return false;
   if (ownProcessNames.some(name => processName === String(name).toLowerCase())) return false;
   if (title.includes('horizon overlay')) return false;
+  if (trackedProcessNames.length > 0 && !trackedProcessNames.some(name => processName === String(name).toLowerCase())) return false;
   if (windowInfo.bounds.width < 320 || windowInfo.bounds.height < 240) return false;
   return true;
 }
 
 class WindowDisplayTracker {
-  constructor({ resolveWindow, screenApi, onDisplay, ownProcessNames = [], ownPids = [], intervalMs = 750 } = {}) {
+  constructor({ resolveWindow, screenApi, onDisplay, ownProcessNames = [], ownPids = [], trackedProcessNames = [], intervalMs = 750 } = {}) {
     if (typeof resolveWindow !== 'function') throw new TypeError('resolveWindow is required');
     if (!screenApi || typeof screenApi.getDisplayMatching !== 'function') throw new TypeError('screenApi.getDisplayMatching is required');
     this.resolveWindow = resolveWindow;
@@ -86,6 +87,7 @@ class WindowDisplayTracker {
     this.onDisplay = onDisplay || (() => {});
     this.ownProcessNames = ownProcessNames;
     this.ownPids = ownPids;
+    this.trackedProcessNames = trackedProcessNames;
     this.intervalMs = intervalMs;
     this.timer = null;
     this.lastTarget = null;
@@ -94,7 +96,11 @@ class WindowDisplayTracker {
 
   poll() {
     this.resolveWindow((error, windowInfo) => {
-      if (error || !windowInfo || !shouldTrackWindow(windowInfo, { ownProcessNames: this.ownProcessNames, ownPids: this.ownPids })) return;
+      if (error || !windowInfo || !shouldTrackWindow(windowInfo, {
+        ownProcessNames: this.ownProcessNames,
+        ownPids: this.ownPids,
+        trackedProcessNames: this.trackedProcessNames
+      })) return;
       const display = this.screen.getDisplayMatching(windowInfo.bounds);
       if (!display) return;
       const key = String(display.id);

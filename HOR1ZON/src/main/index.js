@@ -84,6 +84,11 @@ function createOverlay() {
         'Crimson Atlas Horizon',
         'electron'
       ],
+      ownPids: [process.pid],
+      trackedProcessNames: [
+        'CrimsonDesert',
+        'CrimsonDesert-Win64-Shipping'
+      ],
       onDisplay: (display, windowInfo) => {
         overlay.setTargetDisplay(display);
         overlay.setData({
