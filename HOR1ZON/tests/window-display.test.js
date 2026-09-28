@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { shouldTrackWindow, WindowDisplayTracker } = require('../src/services/overlay/window-display');
+const { shouldTrackWindow, WindowDisplayTracker, GameUiHeuristicDetector } = require('../src/services/overlay/window-display');
 
 test('window target filter ignores Horizon and tiny windows', () => {
   assert.equal(shouldTrackWindow({ pid: 10, processName: 'Crimson-Atlas-Horizon', title: 'Horizon', bounds: { width: 1920, height: 1080 } }, { ownProcessNames: ['Crimson-Atlas-Horizon'] }), false);
@@ -61,4 +61,26 @@ test('display tracker can restrict tracking to Crimson Desert process', () => {
   tracker.poll();
   assert.equal(calls, 0);
   assert.equal(tracker.getState().displayId, null);
+});
+
+
+test('game UI heuristic restores when cursor capture returns', () => {
+  const samples = [
+    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: false },
+    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: false },
+    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: true },
+    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: true },
+    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: true },
+    { processName: 'CrimsonDesert', cursorVisible: true, cursorCaptured: true },
+  ];
+  const states = [];
+  const detector = new GameUiHeuristicDetector({
+    resolveUi: cb => cb(null, samples.shift()),
+    onState: state => states.push(state),
+    intervalMs: 1000,
+    hideSamples: 2,
+    restoreSamples: 4
+  });
+  for (let i = 0; i < 6; i++) detector.poll();
+  assert.deepEqual(states, ['GAME_UI_HEURISTIC', 'GAMEPLAY']);
 });
