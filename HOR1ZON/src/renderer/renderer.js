@@ -83,12 +83,20 @@ function renderOverlay(state) {
   $('#overlayStatus').textContent = value.visible ? 'VISIBLE' : 'HIDDEN';
   $('#overlayModeDash').textContent = value.mode || 'FULL';
   $('#overlayRuntimeDash').textContent = value.data?.runtimeState || (value.runtimeSuppressed ? 'UI HIDDEN' : 'GAMEPLAY');
+  $('#overlayDetectionDash').textContent = value.data?.runtimeSource ? `${String(value.data.runtimeSource).toUpperCase()} · ${Math.round(Number(value.data.runtimeConfidence || 0) * 100)}%` : 'STATE ENGINE';
   $('#editOverlay').textContent = value.editMode ? 'Finish Position Editing' : 'Edit Overlay Position';
 }
 
 async function refreshOverlay() {
   const state = await window.horizon.getOverlayState();
   renderOverlay(state);
+}
+
+async function refreshDetection() {
+  const detection = await window.horizon.getOverlayDetectionState();
+  const engine = detection?.engine || {};
+  $('#overlayDetectionDash').textContent = `${String(engine.source || 'none').toUpperCase()} · ${Math.round(Number(engine.confidence || 0) * 100)}%`;
+  $('#overlayRuntimeDash').textContent = engine.state || 'UNKNOWN';
 }
 
 function renderUpdater(state) {
@@ -118,6 +126,8 @@ async function boot() {
   renderUpdater(updater);
   await refreshOverlay();
   await renderRuntimeState();
+  refreshDetection().catch(() => {});
+  window.setInterval(() => refreshDetection().catch(() => {}), 1000);
 
   $('#saveSettings').onclick = async () => {
     try {
