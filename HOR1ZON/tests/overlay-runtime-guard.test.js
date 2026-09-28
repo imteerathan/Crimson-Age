@@ -43,6 +43,18 @@ test('cutscene policy can be controlled independently from fullscreen UI', () =>
 });
 
 
+test('skill and storage states are treated as game UI', () => {
+  const overlay = fakeOverlay();
+  const guard = new OverlayRuntimeGuard({
+    overlay,
+    getSettings: () => ({ overlay: { autoHideDuringGameUi: true, autoHideDuringCutscene: true, restoreAfterStableGameplay: true } })
+  });
+  guard.setState('SKILL');
+  assert.equal(overlay.state.runtimeSuppressed, true);
+  guard.setState('STORAGE');
+  assert.equal(overlay.state.runtimeSuppressed, true);
+});
+
 test('explicit input UI state suppresses and gameplay restores', () => {
   const overlay = fakeOverlay();
   const guard = new OverlayRuntimeGuard({
