@@ -31,33 +31,79 @@ class UpdaterService {
     }
   }
 
+  patch(patch) {
+    this.state = { ...this.state, ...patch };
+    this.emit(this.getState());
+    return this.getState();
+  }
+
   bindEvents() {
-    this.updater.on('checking-for-update', () => this.safePublish('CHECKING', { error: null, checkedAt: this.now() }));
-    this.updater.on('update-available', info => this.safePublish('AVAILABLE', {
-      availableVersion: info?.version || null,
-      progress: null,
-      error: null,
-      checkedAt: this.now()
-    }));
-    this.updater.on('update-not-available', info => this.safePublish('UP_TO_DATE', {
-      availableVersion: null,
-      progress: null,
-      error: null,
-      checkedAt: this.now()
-    }));
+    this.updater.on('checking-for-update', () => {
+      if (this.state.state === 'CHECKING') {
+        this.patch({ error: null, checkedAt: this.now() });
+        return;
+      }
+      this.safePublish('CHECKING', { error: null, checkedAt: this.now() });
+    });
+
+    this.updater.on('update-available', info => {
+      if (this.state.state === 'AVAILABLE') {
+        this.patch({
+          availableVersion: info?.version || this.state.availableVersion,
+          progress: null,
+          error: null,
+          checkedAt: this.now()
+        });
+        return;
+      }
+      this.safePublish('AVAILABLE', {
+        availableVersion: info?.version || null,
+        progress: null,
+        error: null,
+        checkedAt: this.now()
+      });
+    });
+
+    this.updater.on('update-not-available', () => {
+      if (this.state.state === 'UP_TO_DATE') {
+        this.patch({ availableVersion: null, progress: null, error: null, checkedAt: this.now() });
+        return;
+      }
+      this.safePublish('UP_TO_DATE', {
+        availableVersion: null,
+        progress: null,
+        error: null,
+        checkedAt: this.now()
+      });
+    });
+
     this.updater.on('download-progress', info => {
-      if (this.state.state !== 'DOWNLOADING') this.safePublish('DOWNLOADING', { error: null });
+      if (this.state.state !== 'DOWNLOADING') {
+        this.safePublish('DOWNLOADING', { error: null });
+      }
       if (this.state.state === 'DOWNLOADING') {
-        this.state = { ...this.state, progress: Math.round(Number(info?.percent || 0)) };
-        this.emit(this.getState());
+        this.patch({ progress: Math.round(Number(info?.percent || 0)) });
       }
     });
-    this.updater.on('update-downloaded', info => this.safePublish('READY', {
-      availableVersion: info?.version || this.state.availableVersion,
-      progress: 100,
-      downloadedAt: this.now(),
-      error: null
-    }));
+
+    this.updater.on('update-downloaded', info => {
+      if (this.state.state === 'READY') {
+        this.patch({
+          availableVersion: info?.version || this.state.availableVersion,
+          progress: 100,
+          downloadedAt: this.now(),
+          error: null
+        });
+        return;
+      }
+      this.safePublish('READY', {
+        availableVersion: info?.version || this.state.availableVersion,
+        progress: 100,
+        downloadedAt: this.now(),
+        error: null
+      });
+    });
+
     this.updater.on('error', error => {
       this.state = {
         ...this.state,
@@ -74,6 +120,12 @@ class UpdaterService {
       this.emit(this.getState());
       return this.getState();
     }
+    if (this.state.state === 'CHECKING') return this.getState();
+    if (this.state.state === 'AVAILABLE' || this.state.state === 'READY') {
+      this.patch({ checkedAt: this.now(), error: null });
+      return this.getState();
+    }
+
     this.safePublish('CHECKING', { error: null, checkedAt: this.now() });
     try {
       await this.updater.checkForUpdates();
@@ -86,6 +138,7 @@ class UpdaterService {
 
   async download() {
     if (!this.isPackaged) return this.getState();
+    if (this.state.state === 'DOWNLOADING') return this.getState();
     if (this.state.state !== 'AVAILABLE') throw new Error('No update is currently available for download');
     this.safePublish('DOWNLOADING', { progress: 0, error: null });
     try {
