@@ -1,70 +1,58 @@
-# Crimson Age Desktop
+# Crimson Atlas Horizon
 
-Windows-first Electron desktop companion for Crimson Age.
+Crimson Atlas Horizon is a Windows-first extension/companion for Crimson Atlas.
 
-## Development workflow
+## Current milestone
 
-1. Run `npm install`.
-2. Run `npm start` during development.
-3. Run `npm run build` for Windows NSIS + portable artifacts.
-4. Launch the packaged executable from PowerShell for field testing.
-5. Use the app's session log when packaged Electron output is not visible in the terminal.
-6. Publish a Git tag such as `v0.3.2` to trigger the GitHub Actions Windows release.
+Version 0.4.0 establishes the first live connection layer:
 
-## Update workflow
+- Automatic Crimson Desert process detection (`CrimsonDesert.exe`)
+- Automatic Crimson Atlas service detection (`CrimsonAtlasService.exe`) when present
+- Local telemetry probing with `/v1/player`, `/player`, `/v1/status`, and `/health`
+- Dashboard states: GAME_NOT_RUNNING, GAME_RUNNING, ATTACHING, CONNECTED, WAITING, NO_PROVIDER, ERROR/OFFLINE
+- Live X/Y/Z display when a supported local telemetry provider returns a position
+- Non-invasive always-on-top overlay
+- Overlay global hotkey: Ctrl+Shift+H
+- Manual hide/show override
+- Atlas/Horizon state is separate from Save Analyzer
+- Existing read-only save analysis is preserved
 
-The packaged app includes an in-app **Check for Updates** control backed by `electron-updater`.
+## Architecture
 
-The intended production flow is:
+```text
+Crimson Desert
+    |
+    +-- Crimson Atlas / Atlas Service
+    |       |
+    |       +-- game/process state
+    |       +-- live telemetry
+    |       +-- save-completion evidence
+    |
+    +-- Crimson Atlas Horizon
+            |
+            +-- connection state
+            +-- live player state
+            +-- completion/guidance layer
+            +-- overlay
+            +-- updater
+```
 
-`GitHub release -> Check for Updates -> Download -> Restart -> Install`
+Horizon treats live game state as the connection gate. Save analysis is evidence, not the connection mechanism.
 
-User data is stored under the Windows user profile and is not part of application update files:
+## Build
 
-- SQLite database
-- Checklist state
-- Save Baseline history
-- Logs
+`npm install`
+`npm start`
+`npm run build`
 
-Save analysis remains read-only. Crimson Age does not write back to the game's save file.
+Windows artifacts are created in `dist/`.
 
-## Important release note
+## Update
 
-GitHub automatic updates require the release assets to be reachable by the packaged client. A private source repository needs an authenticated distribution path for end-user update downloads. The current repository is configured as the source/release project; before production rollout, use a public release endpoint or a separate public release repository rather than embedding a GitHub personal access token in the client.
+The packaged application uses `electron-updater` with GitHub Releases.
 
-## Current scope
+The repository workflow builds Windows NSIS + portable artifacts and publishes a GitHub Release for the package version.
 
-- Electron desktop shell
-- SQLite persistence
-- Checklist persistence
-- Save metadata + SHA-256 baseline
-- Read-only PARC object correlation with safe primitive/enum/scalar-alias field-value previews and searchable change filtering
-- Baseline history
-- Local logging
-- Windows NSIS + portable packaging
-- In-app update check/download/install flow
-- Placeholder map renderer only
+## Scope
 
-Not yet claimed:
-D1.8 extends value previews with an allowlisted set of scalar aliases (for example `TStat`, `TLevel`, and `TStackCount`). These are shown as unsigned storage-level interpretations only; they are not treated as full semantic type resolution.
-
-
-- Real game map
-- Semantic Save decoding
-- Crimson Route integration
-- Complete canonical database
-
-## Versioning policy
-
-D1.9 adds a local search/filter field to the Save Object Correlation view so changed classes, fields, types, and decoded values can be located without manually scanning the result list.
-
-D1.10 clears previously rendered save comparisons and correlation search state whenever a new baseline is captured. This prevents an older comparison from being mistaken for the newly selected baseline pair.
-
-The project uses **one version number only**, stored in `package.json`.
-
-- Normal releases use SemVer: `X.Y.Z`.
-- The same `X.Y.Z` value is used for the app, installer filename, Git tag, GitHub Release, and updater metadata.
-- Patch releases advance sequentially, for example `0.3.19` -> `0.3.20`.
-- There is no separate public version, updater version, base version, or hotfix suffix.
-
-`electron-updater` reads the same application version from Electron/package metadata. This keeps the version shown to the user and the version used by the updater identical.
+Horizon does not modify the Crimson Desert installation or game save files.
