@@ -1,17 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeChannel, resolveFeedUrl } = require('../src/services/updater/feed');
+const { resolveFeedUrl } = require('../src/services/updater/feed');
 
-test('update feed resolver supports stable and beta channels', () => {
-  assert.equal(normalizeChannel('STABLE'), 'stable');
-  assert.equal(normalizeChannel('beta'), 'beta');
+test('update feed resolver always uses the stable channel', () => {
   assert.equal(
-    resolveFeedUrl('https://updates.example.test/root/', 'stable'),
+    resolveFeedUrl('https://updates.example.test/root/'),
     'https://updates.example.test/root/stable/'
   );
 });
 
-test('update feed resolver rejects unsupported or insecure configuration', () => {
-  assert.throws(() => normalizeChannel('nightly'), /Unsupported update channel/);
-  assert.throws(() => resolveFeedUrl('http://updates.example.test/root', 'stable'), /HTTPS URL/);
+test('update feed resolver rejects insecure configuration', () => {
+  assert.throws(() => resolveFeedUrl('http://updates.example.test/root'), /HTTPS URL/);
 });
