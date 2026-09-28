@@ -13,6 +13,7 @@ test('diagnostics records events and prunes by retention window', () => {
     now: () => now
   });
 
+  now = new Date('2026-09-25T12:00:00.000Z');
   service.record('old', { a: 1 });
   now = new Date('2026-09-26T11:59:59.000Z');
   service.record('boundary-old');
