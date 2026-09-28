@@ -75,8 +75,23 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Build Horizon installer
-        run: npm run build:win
+      - name: Resolve release artifact
+        shell: powershell
+        env:
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          $version = "${{ steps.release.outputs.version }}"
+          $exe = "dist/Crimson-Atlas-Horizon-Setup-$version.exe"
+          $tag = "horizon-v$version"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern "Crimson-Atlas-Horizon-Setup-$version.exe" --dir dist --clobber
+          } else {
+            npm run build:win
+            if (!(Test-Path $exe)) { throw "Missing release artifact: $exe" }
+            gh release create $tag $exe --repo $env:GITHUB_REPOSITORY --title "Crimson Atlas Horizon v$version" --notes "Horizon Extension $version"
+          }
+          if (!(Test-Path $exe)) { throw "Missing release artifact: $exe" }
 
       - name: Prepare update metadata
         shell: powershell
@@ -99,28 +114,27 @@ jobs:
           releaseDate: $releaseDate
           "@ | Set-Content -Path "../updates/$channel/latest.yml" -Encoding UTF8
 
-      - name: Publish Horizon release
+      - name: Publish update feed metadata
         shell: powershell
         env:
           GH_TOKEN: "${{ github.token }}"
         run: |
           $version = "${{ steps.release.outputs.version }}"
-          $exe = "dist/Crimson-Atlas-Horizon-Setup-$version.exe"
-          $tag = "horizon-v$version"
-          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $exe --repo $env:GITHUB_REPOSITORY --title "Crimson Atlas Horizon v$version" --notes "Horizon Extension $version"
-          }
-
-      - name: Publish update feed metadata
-        shell: powershell
-        run: |
           $channel = "${{ steps.release.outputs.channel }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "../updates/$channel/latest.yml"
-          $staged = git diff --cached --name-only
-          if ($staged) {
-            git commit -m "chore(horizon): publish $channel feed v${{ steps.release.outputs.version }}"
-            git push origin "HEAD:$env:GITHUB_REF_NAME"
-          }
+          $path = "updates/$channel/latest.yml"
+          $branch = $env:GITHUB_REF_NAME
+          $repo = $env:GITHUB_REPOSITORY
+          $content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-Content "../updates/$channel/latest.yml" -Raw)))
+
+          $current = gh api "repos/$repo/contents/$path?ref=$branch" 2>$null | ConvertFrom-Json
+          $sha = $null
+          if ($LASTEXITCODE -eq 0 -and $current) { $sha = $current.sha }
+
+          $apiArgs = @(
+            "api", "-X", "PUT", "repos/$repo/contents/$path",
+            "-f", "message=chore(horizon): publish $channel feed v$version",
+            "-f", "content=$content",
+            "-f", "branch=$branch"
+          )
+          if ($sha) { $apiArgs += @("-f", "sha=$sha") }
+          gh @apiArgs
