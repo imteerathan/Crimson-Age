@@ -12,6 +12,7 @@ const { ExtensionStateStore } = require('../services/storage/extension-state');
 const { DiagnosticsService } = require('../services/diagnostics/service');
 const { MigrationService } = require('../services/migration/service');
 const { OverlayManager } = require('../services/overlay/manager');
+const { OverlayRuntimeGuard } = require('../services/overlay/runtime-guard');
 const manifest = require('../../manifest.json');
 
 let win;
@@ -24,6 +25,7 @@ const events = new EventBus();
 const atlas = new AtlasConnection(manifest);
 const atlasLoader = createLoader({ manifest, onEvent: event => events.emit(event) });
 let overlay;
+let runtimeGuard;
 
 function recordDiagnostic(event, payload) {
   if (diagnostics) diagnostics.record(event, payload);
@@ -52,6 +54,9 @@ function createOverlay() {
     overlayPreloadPath: path.join(__dirname, '../overlay/preload.js'),
     onState: state => {
       recordDiagnostic('horizon.overlay.state', state);
+    },
+    onPositionChange: position => {
+      if (settings) settings.set({ overlay: { position } });
     }
   });
   overlay.configure(settings.get().overlay);
@@ -61,6 +66,10 @@ function createOverlay() {
     host: 'Standalone',
     hostState: atlas.getState().status,
     updaterState: updater ? updater.getState().state : 'IDLE'
+  });
+  runtimeGuard = new OverlayRuntimeGuard({
+    overlay,
+    getSettings: () => settings.get()
   });
 }
   
@@ -144,6 +153,10 @@ function registerIpc() {
   ipcMain.handle('horizon:overlay:show', () => overlay.show('ipc-show'));
   ipcMain.handle('horizon:overlay:hide', () => overlay.hide('ipc-hide'));
   ipcMain.handle('horizon:overlay:toggle', () => overlay.toggle('ipc-toggle'));
+  ipcMain.handle('horizon:overlay:edit-toggle', () => overlay.setEditMode(!overlay.getState().editMode));
+  ipcMain.handle('horizon:overlay:set-position', (_event, position) => overlay.setPosition(position));
+  ipcMain.handle('horizon:overlay:runtime-state', (_event, state, reason) => runtimeGuard.setState(state, { reason }));
+  ipcMain.handle('horizon:overlay:notify', (_event, message, duration = 3000) => overlay.notify(message, duration));
 }
 
 app.whenReady().then(() => {
