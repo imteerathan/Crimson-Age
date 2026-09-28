@@ -122,19 +122,7 @@ jobs:
           $version = "${{ steps.release.outputs.version }}"
           $channel = "${{ steps.release.outputs.channel }}"
           $path = "updates/$channel/latest.yml"
-          $branch = $env:GITHUB_REF_NAME
           $repo = $env:GITHUB_REPOSITORY
-          $content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-Content "../updates/$channel/latest.yml" -Raw)))
-
-          $current = gh api "repos/$repo/contents/$path?ref=$branch" 2>$null | ConvertFrom-Json
-          $sha = $null
-          if ($LASTEXITCODE -eq 0 -and $current) { $sha = $current.sha }
-
-          $apiArgs = @(
-            "api", "-X", "PUT", "repos/$repo/contents/$path",
-            "-f", "message=chore(horizon): publish $channel feed v$version",
-            "-f", "content=$content",
-            "-f", "branch=$branch"
-          )
-          if ($sha) { $apiArgs += @("-f", "sha=$sha") }
-          gh @apiArgs
+          $local = "../updates/$channel/latest.yml"
+          $content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-Content $local -Raw)))
+          gh api --method PUT "repos/$repo/contents/$path" -f "message=chore(horizon): publish $channel feed v$version" -f "content=$content" -f "branch=$env:GITHUB_REF_NAME"
