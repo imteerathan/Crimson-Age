@@ -34,6 +34,10 @@ async function boot() {
     updater = await window.crimsonAge.updaterStatus();
     horizon = await window.crimsonAge.getHorizonGameState();
     bindUpdater();
+    window.crimsonAge.onHorizonGameState(async next => {
+      horizon = next;
+      await render();
+    });
     await render();
   } catch (err) {
     console.error('Crimson Atlas Horizon boot failed', err);
@@ -83,10 +87,6 @@ function renderHorizonDashboard() {
 }
 
 function bindHorizon() {
-  window.crimsonAge.onHorizonGameState(async next => {
-    horizon = next;
-    await render();
-  });
   const refreshButton = document.querySelector('#refreshHorizon');
   if (refreshButton) refreshButton.onclick = async () => {
     refreshButton.disabled = true;
