@@ -106,3 +106,17 @@ test('game input detector emits one edge per ESC and controller menu/view press'
   for (let i = 0; i < 7; i++) detector.poll();
   assert.deepEqual(events, ['ESC', 'GAMEPAD_MENU', 'GAMEPAD_VIEW']);
 });
+
+test('window target filter can match Crimson Desert by title or executable path', () => {
+  const base = { pid: 99, bounds: { width: 1600, height: 900 } };
+  assert.equal(shouldTrackWindow({ ...base, processName: 'CrimsonDesertGame', title: 'Crimson Desert', path: 'C:/Games/CrimsonDesert/game.exe' }, {
+    trackedProcessNames: ['CrimsonDesert'],
+    titleHints: ['crimson desert'],
+    pathHints: ['crimson desert']
+  }), true);
+  assert.equal(shouldTrackWindow({ ...base, processName: 'Unknown', title: 'Unknown', path: 'C:/Other/game.exe' }, {
+    trackedProcessNames: ['CrimsonDesert'],
+    titleHints: ['crimson desert'],
+    pathHints: ['crimson desert']
+  }), false);
+});
