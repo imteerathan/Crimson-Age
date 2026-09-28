@@ -5,13 +5,14 @@ const { SettingsStore } = require('../services/settings/store');
 const { UpdaterService } = require('../services/updater/service');
 const { EventBus } = require('../core/events/event-bus');
 const { validateManifest } = require('../core/contracts/manifest');
-const { handshake } = require('../adapters/atlas/handshake');
+const { AtlasConnection } = require('../adapters/atlas/connection');
 const manifest = require('../../manifest.json');
 
 let win;
 let settings;
 let updater;
 const events = new EventBus();
+const atlas = new AtlasConnection(manifest);
 
 function sendUpdaterState(state) {
   events.emit({
@@ -26,10 +27,10 @@ function sendUpdaterState(state) {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 960,
-    minHeight: 640,
+    width: 1360,
+    height: 860,
+    minWidth: 1080,
+    minHeight: 700,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -45,7 +46,12 @@ function registerIpc() {
   ipcMain.handle('horizon:settings:get', () => settings.get());
   ipcMain.handle('horizon:settings:set', (_event, patch) => settings.set(patch));
   ipcMain.handle('horizon:settings:reset', () => settings.reset());
-  ipcMain.handle('horizon:host:status', () => handshake({ manifest }));
+
+  ipcMain.handle('horizon:host:status', () => atlas.getState());
+  ipcMain.handle('horizon:host:simulate-handshake', (_event, hostInfo, hostCapabilities) => {
+    return atlas.evaluate(hostInfo, hostCapabilities);
+  });
+
   ipcMain.handle('horizon:updater:get', () => updater.getState());
   ipcMain.handle('horizon:updater:check', () => updater.check());
   ipcMain.handle('horizon:updater:download', () => updater.download());
@@ -54,16 +60,24 @@ function registerIpc() {
 
 app.whenReady().then(() => {
   validateManifest(manifest);
+
   const dataDir = path.join(app.getPath('userData'), 'data');
   settings = new SettingsStore(path.join(dataDir, 'horizon-settings.json'));
   settings.load();
+
+  const feedUrl = process.env.HORIZON_UPDATE_FEED_URL || '';
+  if (app.isPackaged && feedUrl) {
+    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
+  }
 
   updater = new UpdaterService({
     updater: autoUpdater,
     version: app.getVersion(),
     isPackaged: app.isPackaged,
+    configured: Boolean(feedUrl) || !app.isPackaged,
     emit: sendUpdaterState
   });
+
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;
@@ -71,6 +85,7 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   sendUpdaterState(updater.getState());
+
   events.emit({
     event: 'horizon.lifecycle.started',
     version: 1,
