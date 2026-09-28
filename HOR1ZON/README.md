@@ -45,11 +45,12 @@ Horizon must not make the host, game logic, or save file the source of truth for
 - [x] Horizon target architecture drafted
 - [ ] Host extension loader contract implemented
 - [ ] Horizon process/service split implemented
-- [ ] Horizon Settings + self-updater implemented
-- [ ] Extension manifest/capability negotiation implemented
-- [ ] Atlas bridge adapter implemented
+- [x] Horizon Settings + self-updater foundation implemented
+- [x] Extension manifest/capability negotiation implemented
+- [x] Atlas bridge adapter contract implemented
 - [ ] Overlay runtime implemented
-- [ ] Migration/upgrade validation implemented
+- [x] Migration/upgrade validation foundation implemented
+- [x] Windows NSIS + portable packaging path implemented
 
 ## Working rule
 
