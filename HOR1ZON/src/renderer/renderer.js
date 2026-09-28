@@ -154,7 +154,7 @@ async function boot() {
   $('#toggleOverlay').onclick = async () => renderOverlay(await window.horizon.toggleOverlay());
   $('#editOverlay').onclick = async () => renderOverlay(await window.horizon.toggleOverlayEditMode());
   $('#testUiHide').onclick = async () => {
-    renderOverlay(await window.horizon.setOverlayRuntimeState('FULLSCREEN_UI', 'manual-test'));
+    renderOverlay(await window.horizon.setOverlayRuntimeState('INPUT_UI', 'manual-test'));
     window.setTimeout(async () => renderOverlay(await window.horizon.setOverlayRuntimeState('GAMEPLAY', 'manual-test-restore')), 2000);
   };
   $('#testNotification').onclick = async () => renderOverlay(await window.horizon.notifyOverlay('HOR1ZON Notification', 3000));
